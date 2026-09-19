@@ -141,6 +141,20 @@ viewer that is computing the same step itself — **the script records, the
 viewer computes** — which is what keeps a viewer smooth when the controller is
 a backgrounded tab on a phone.
 
+## Status
+
+**Working in Chrome, Firefox and Safari**, as of 2026-09-19.
+
+What has been demonstrated: the published pages, served from GitHub Pages,
+driving a viewer through a relay running on a laptop — a controller and a
+viewer that know nothing about each other's hosting, and a relay that knows
+nothing about either.
+
+What has **not**: anything across two devices. Every test so far is two
+windows on one machine, which is the case that needs no relay at all. That
+needs a relay reachable from both, which means deploying one — and then the
+`Send to another device` button described in the parent project's plan.
+
 ## Am I looking at the current version?
 
 Both pages carry a **canary**: a coloured border that changes on every commit
