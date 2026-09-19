@@ -37,15 +37,29 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-19: GREEN (the page narrates its own connection to the console).
-     Next = blue. */
+     2026-09-19: BLUE (the relay can be typed in and is remembered).
+     Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
+  /* Shown only when there is no relay yet. A query string is too easy to lose
+     on a reload, and losing it produced a page that looked healthy and did
+     nothing — so the relay can simply be typed, and is remembered. */
+  #rxurl, #rxset { display: none; }
+  body.norelay #rxurl {
+    display: inline-block; width: 260px; padding: 5px 7px;
+    background: #101018; color: #cfcfda; border: 1px solid #2a2a3a;
+    border-radius: 3px; font: 12px system-ui, sans-serif;
+  }
+  body.norelay #rxset {
+    display: inline-block; background: #000; color: #fff;
+    border: 1px solid #c9a227; border-radius: 3px; padding: 5px 10px;
+    font: 12px system-ui, sans-serif; cursor: pointer;
+  }
   #state.problem { color: #d98a8a; }
   main { flex: 1 1 auto; display: flex; min-height: 0; }
   #frame { flex: 1 1 auto; border: 0; min-width: 0; background: #0a0a0f; }
@@ -75,7 +89,10 @@
     <h1>BDX</h1>
     <span class="sub">controller &mdash; the script is the truth</span>
     <span id="state">connecting&hellip;</span>
-    <button id="view" type="button" title="Open a viewer and drive it from here">View</button>
+    <input id="rxurl" type="text" spellcheck="false" placeholder="relay URL, e.g. http://localhost:8081"
+         title="Where the relay is. Remembered, so a reload does not lose it.">
+  <button id="rxset" type="button" title="Use this relay">use</button>
+  <button id="view" type="button" title="Open a viewer and drive it from here">View</button>
   </header>
   <main>
     <!-- No src at load. The renderer announces BD_READY as soon as it loads, and
@@ -103,8 +120,19 @@ const DEFAULT_RX = 'https://rx.example.invalid';
 const RX_UNSET   = DEFAULT_RX.indexOf('.invalid') !== -1;
 const params  = new URLSearchParams(location.search);
 const LOCAL   = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-const RX = params.get('rx') ||
+
+// Where the relay is, in order of preference: the query string, then whatever
+// was last typed into the box below, then localhost if that is where this page
+// is, then the compiled-in default.
+//
+// The stored one matters more than it looks. ?rx= is lost by any reload that
+// does not carry it, and the result was a page that drew perfectly, said
+// nothing, and had never created a socket — three rounds of debugging.
+let STORED_RX = null;
+try { STORED_RX = localStorage.getItem('bdx_rx'); } catch (_) {}
+const RX = params.get('rx') || STORED_RX ||
            (LOCAL ? location.protocol + '//' + location.hostname + ':8081' : DEFAULT_RX);
+if (params.get('rx')) { try { localStorage.setItem('bdx_rx', params.get('rx')); } catch (_) {} }
 
 const MODULE_ID = 'kolam';          // which KIND of viewer a token is for
 const frame  = document.getElementById('frame');
@@ -269,11 +297,12 @@ let socket = null, viewerWindow = null;
 
 if (location.protocol === 'file:') {
   // already said so above
-} else if (RX_UNSET && !params.get('rx') && !LOCAL) {
+} else if (RX === DEFAULT_RX && RX_UNSET) {
   // The hosted copy, with no relay deployed behind it. Naming a placeholder
-  // host reads like a broken link; say what to do instead. The drawing and
-  // the steppers still work — everything here except reaching a viewer does.
-  say('no relay set — run one (npm start) or add ?rx=<url>', true);
+  // host reads like a broken link; offer the box instead. The drawing and the
+  // steppers still work — everything except reaching a viewer does.
+  document.body.classList.add('norelay');
+  say('no relay set — type one and press use', true);
 } else {
   say('relay ' + RX.replace(/^https?:\/\//, '') + ' — connecting…');
   // Logged, because the failure this keeps producing is SILENT: the drawing
@@ -324,6 +353,24 @@ function connect() {
     }
   });
 }
+
+// The box. Remembered, then reload — simpler and more obviously correct than
+// re-running the connection machinery in place.
+(function () {
+  const box = document.getElementById('rxurl');
+  const go  = document.getElementById('rxset');
+  if (!box || !go) return;
+  box.value = STORED_RX || (LOCAL ? location.protocol + '//' + location.hostname + ':8081'
+                                  : 'http://localhost:8081');
+  const use = () => {
+    const v = box.value.trim().replace(/\/$/, '');
+    if (!/^https?:\/\//.test(v)) { say('a relay URL starts http:// or https://', true); return; }
+    try { localStorage.setItem('bdx_rx', v); } catch (_) {}
+    location.href = location.pathname + '?rx=' + encodeURIComponent(v);
+  };
+  go.addEventListener('click', use);
+  box.addEventListener('keydown', (e) => { if (e.key === 'Enter') use(); });
+})();
 
 // ── Re-issuing a token to a viewer whose own is spent ───────────────────────
 //
