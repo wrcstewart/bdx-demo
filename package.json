@@ -1,0 +1,16 @@
+{
+  "name": "bdx-demo-rx",
+  "version": "1.0.0",
+  "description": "RX — a rendezvous relay for a controller and a viewer on different devices. One dependency, no database, no filesystem state.",
+  "main": "rx.js",
+  "scripts": {
+    "start": "node rx.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "socket.io": "^4.7.5"
+  },
+  "license": "CC0-1.0"
+}

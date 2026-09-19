@@ -1,0 +1,1513 @@
+<!-- Copied from ButterflyDreaming V_Kolam/visual_module.html on 2026-09-19 by
+     sync_from_bd.sh. Do not edit here — edit it there and re-run the script. -->
+<!-- ButterflyDreaming Visual Module — visual_module.html — BD Protocol v0.1 -->
+<!-- Sync check: verified visual_module.html <-> GitHub round-trip (2026-07-01). -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ButterflyDreaming — Visual Module</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;                  /* A42 §42.9 — module fills its iframe */
+    }
+    body {
+      background: #0a0a0f;
+      color: #e8e8e0;
+      font-family: Georgia, 'Times New Roman', serif;
+      display: flex;
+      flex-direction: column;
+      gap: 0;                            /* no gap — every pixel goes to the canvas */
+      padding: 0;                        /* was 0.6rem — reclaim ~20px each side (A42) */
+      box-sizing: border-box;
+    }
+
+    /* Status overlays the top-left corner instead of consuming a full row.
+       Pointer-events: none so it never blocks a canvas or spinner click. */
+    #status {
+      position: absolute;
+      top: 2px;
+      left: 4px;
+      z-index: 10;
+      font-size: 0.7rem;
+      font-style: italic;
+      color: #9e9e90;
+      letter-spacing: 0.04em;
+      pointer-events: none;
+      background: rgba(10, 10, 15, 0.6);
+      padding: 1px 4px;
+      border-radius: 2px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 0.6rem;
+      align-items: center;
+    }
+
+    button {
+      background: #0f0f18;
+      border: 1px solid #4a9b8e;
+      color: #4a9b8e;
+      cursor: pointer;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 0.8rem;
+      letter-spacing: 0.05em;
+      padding: 0.45rem 1.1rem;
+      text-transform: uppercase;
+    }
+
+    button:hover {
+      background: #1a2a28;
+    }
+
+    button:active {
+      background: #243f3b;
+    }
+
+    /* A42 fix (user report 2026-07-01) — canvas takes the full available
+       height and matches its width to it (square), spinners fill whatever
+       horizontal room is left and wrap. Previous grid layout was giving the
+       controls column a fixed 170px and starving the canvas of both padding
+       and honest height math.
+       In a very wide-and-short iframe (e.g. 1574×150 when the chat panel
+       is open) this yields canvas 150×150 with spinners in a ~1400px-wide
+       band wrapping into a couple of rows. */
+    .module-layout {
+      flex: 1;
+      display: flex;
+      flex-direction: row;
+      gap: 0;
+      min-height: 0;
+      min-width: 0;
+    }
+
+    .canvas-wrapper {
+      flex: 1 1 auto;                    /* takes whatever remains after the panel */
+      min-height: 0;
+      min-width: 0;
+      display: flex;
+      /* Landscape (default): right-align the square canvas within its wrapper
+         so it sits snug against the left edge of the control-panel.
+         Previously center-aligned, leaving a large empty gap between the
+         canvas and the column on desktop/laptop. Overridden to center in
+         the portrait media query below. */
+      justify-content: flex-end;
+      align-items: center;
+      /* 2026-08-19 — 44px band between canvas and stepper column, the home for
+         BD's ↓↑ arrows. The small layout gets the same band for free from the
+         canvas's translateX; without this the canvas is flush against the
+         column in landscape and the arrows land on the graphic. */
+      padding-right: 44px;
+      /* 2026-08-19 — and 52px below it for BD's Extension strip, matching the
+         reserve the small layout has always had. Without it the canvas fills
+         the wrapper down to the iframe's bottom edge, the strip has nowhere to
+         sit, and positionExtendPanel's breadcrumb clamp pulls it up ONTO the
+         graphic (it needs 44: 34 strip + 6 gap + 4 clearance).
+         The canvas is height-limited on desktop, so this costs ~52px of square
+         in both dimensions — deliberate, and the same trade the small layout
+         makes for free (it is width-limited there). */
+      padding-bottom: 52px;
+    }
+
+    /* Small iframe (mobile) — 2026-08-05 v13. Kolam-specific gutter for BD's
+       extend panel (which sits at bottom-left of viewport, ~84 px wide).
+       Was previously a global iframe left-reserve in positionCyEl (v8) but
+       that shifted every module including music_module unnecessarily. Now
+       Kolam handles it via a padding-left on the flex layout — canvas +
+       control-panel shift right by 88 px, extend panel sits in the gutter.
+       Music module has its own portrait rules and doesn't need this. */
+    @media (max-width: 500px) {
+      /* 2026-08-17 — keep the 88px band so the canvas holds its former (small)
+         size + position; the Extension bar sits UNDER the canvas (BD
+         positionExtendPanel .under-canvas). Drop the canvas to the BOTTOM
+         (align-items: flex-end) with a padding-bottom that reserves room for
+         the Extension bar just beneath it — so the bar lands just above the
+         breadcrumbs and the canvas sits just above the bar. */
+      .module-layout { padding-left: 88px; }
+      .canvas-wrapper { justify-content: center; align-items: flex-end; padding-bottom: 52px;
+                        padding-right: 0; }   /* small layout makes its own band
+                                                 via the canvas translateX */
+      /* 2026-08-17 — shift canvas 15% + 20px left to free room between it and
+         the stepper column for BD's ↓↑ arrows. The Extension bar follows (BD
+         centres it on the live canvas rect). */
+      .canvas-wrapper canvas { transform: translateX(calc(-15% - 20px)); }
+      .control-panel {
+        flex: 0 0 108px !important;
+        padding: 6px 4px;
+        /* 2026-08-17 — bright amber so the stepper panel reads as its own
+           block, set off from the ↓↑ arrows to its left. !important because the
+           BASE .control-panel rule below (equal specificity, later in source)
+           was overriding this — which is why earlier attempts showed no tint
+           (same reason the flex above needs !important). */
+        background: rgba(75, 54, 0, 0.9) !important;
+      }
+      .control-row { width: 100px; }
+    }
+
+    /* Default (landscape) control panel — fixed 220 px column on the right.
+       Fixed width prevents the canvas from squeezing the panel to zero when
+       the iframe is nearly square (as in the preview harness).
+       Portrait media query above overrides to a bottom band.
+       The <canvas> keeps itself square via its own aspect-ratio + max-*. */
+    .control-panel {
+      /* 2026-08-19 — 220 → 130. A control-row is 94px; with the panel's
+         padding, border and a scrollbar it needs ~122. The 220 was defensive
+         (stop the canvas squeezing the panel to zero in the preview harness)
+         and left ~90px dead, which is what made the column look twice the
+         width it needs. */
+      flex: 0 0 130px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;             /* controls hug the left edge, − on the left */
+      gap: 2px;                            /* 2026-07-12 -50% from 4 px for MM3 density */
+      /* 2026-08-19 — amber at EVERY width, not just the small layout, so the
+         stepper block reads as its own thing and the arrows' relationship to
+         it is visible at a glance. */
+      background: rgba(75, 54, 0, 0.9);
+      border: 1px solid rgba(74, 155, 142, 0.2);
+      padding: 6px 8px;
+      border-radius: 0.4rem;
+      min-height: 0;
+      min-width: 0;
+      overflow-y: auto;
+    }
+
+    /* Control cell — one stepper (or select) above, label immediately below.
+       Small margin-bottom separates each button-label pair from the next.
+       Media-module convention 2026-07-02. */
+    .control-row {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;                            /* 2026-07-12 -50% from 2 px */
+      flex: 0 0 auto;
+      width: 94px;                         /* 2026-08-17 — with 34px buttons, centres sit ~60px apart (was 70) → ~15% closer */
+      margin-bottom: 3px;                  /* 2026-07-12 -50% from 6 px */
+    }
+
+    .control-row label {
+      font-size: 0.7rem;
+      letter-spacing: 0.02em;
+      color: #4a9b8e;
+      text-align: center;
+      font-family: 'Courier New', Courier, monospace;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;      /* no iOS magnifier / text-select on long-press */
+    }
+
+    /* Stepper: [−] [value] [+] row. Buttons flex fixed-width, value spans middle. */
+    .stepper {
+      display: flex;
+      align-items: stretch;
+      justify-content: space-between;
+      gap: 2px;                            /* 2026-07-12 -50%-ish from 3 px */
+    }
+
+    .step-btn {
+      background: #0f0f18;
+      border: 1px solid #4a9b8e;
+      color: #4a9b8e;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 1.25rem;                      /* 2026-08-17 — glyph scales with the bigger button */
+      padding: 0;
+      width: 34px;                             /* 2026-08-17 — +30% (was 26) for easier mobile taps */
+      height: 34px;                            /* 2026-08-17 — +30% (was 26) */
+      line-height: 1;
+      text-transform: none;
+      letter-spacing: 0;
+      cursor: pointer;
+      border-radius: 3px;
+      flex: 0 0 auto;
+      touch-action: manipulation;              /* kill iOS double-tap zoom on rapid taps */
+      user-select: none;
+      -webkit-user-select: none;               /* older iOS Safari — text-select on long press */
+      -webkit-touch-callout: none;             /* suppress long-press callout / magnifier */
+      -webkit-tap-highlight-color: transparent;/* no grey flash halo */
+    }
+
+    .step-btn:hover  { background: #1a2a28; }
+    .step-btn:active { background: #243f3b; }
+    .step-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .stepper-value {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.7rem;                       /* 2026-08-17 — was 0.78; narrower value span (bigger buttons + closer centres) still fits "100" */
+      color: #e8e8e0;
+      background: #0f0f18;
+      border: 1px solid #2a2a3a;
+      padding: 1px;                            /* 2026-08-17 — was 2px, reclaim width for the 3-char readout */
+      border-radius: 3px;
+      min-width: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    /* Hidden source input backing each stepper — kept in the DOM so existing
+       JS can still read/write .value, min, max, step. */
+    .stepper-source {
+      display: none;
+    }
+
+    /* Set by the host harness via postMessage bd_ui_config { hideControls: true }.
+       Preview.html supplies its own outer stepper column; hiding the internal
+       one lets the canvas take the whole iframe width. */
+    body.controls-hidden .control-panel { display: none; }
+    body.controls-hidden .canvas-wrapper { flex: 1 1 auto; }
+
+    /* 2026-09-15 — controls-hidden means the HOST supplies the control surface
+       and nothing of ours is on screen, so the gutters the small layout
+       reserves (88px left for the host's arrows, 52px bottom for its band) are
+       reserving space for things that are not there. On a phone that cost
+       about 15% of the width and pushed the figure off-centre. Reclaim it and
+       centre, but ONLY in this mode: BD's embedded player and the standalones
+       still need those gutters. */
+    /* And undo the small layout's canvas nudge. It shifts the canvas
+       translateX(calc(-15% - 20px)) to free a band for BD's ↓↑ arrows beside
+       the stepper column — 84.5px at a 430px width, measured. With no arrows
+       and no column, that band is empty screen and the figure hangs off the
+       left edge. This was the whole of the "square is over to the left". */
+    body.controls-hidden .canvas-wrapper canvas { transform: none; }
+    body.controls-hidden .module-layout  { padding-left: 0; padding-right: 0; }
+    body.controls-hidden .canvas-wrapper {
+      justify-content: center;
+      align-items: center;
+      padding-bottom: 0;
+      padding-right: 0;
+    }
+
+    /* Selects retain their native appearance for iOS/mobile compatibility. */
+    .control-panel select {
+      width: 100%;
+      background: #0f0f18;
+      color: #e8e8e0;
+      border: 1px solid #2a2a3a;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.9rem;          /* ≥16px logical to avoid iOS auto-zoom on focus */
+      padding: 4px;
+      accent-color: #4a9b8e;
+      outline: none;
+    }
+
+    .control-panel select:focus {
+      border-color: #4a9b8e;
+    }
+
+    canvas {
+      border: 1px solid #4a9b8e;
+      border-opacity: 0.3;
+      display: block;
+      /* A42 §42.9 — fit inside wrapper without overflowing either axis */
+      max-width: 100%;
+      max-height: 100%;
+      aspect-ratio: 1 / 1;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 2026-08-17 — starts EMPTY (was "Ready"); still used for error text via setStatus. -->
+  <div id="status"></div>
+
+  <div class="module-layout">
+
+  <div class="canvas-wrapper">
+    <canvas id="kolam-canvas"></canvas>
+  </div>
+
+  <div class="control-panel">
+    <!-- Media-module control convention (2026-07-02):
+         · every numeric-arg %%bd_ directive gets a +/− stepper (buttons above, label below)
+         · label text = the directive name after %%bd_ (verbatim, incl. underscore)
+         · angle_minutes / angle_seconds hidden — drift-automation still uses them -->
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="symmetry-select" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="symmetry-select">8</span>
+        <button class="step-btn" type="button" data-target="symmetry-select" data-delta="1">+</button>
+      </div>
+      <label>symmetry</label>
+      <input id="symmetry-select" class="stepper-source" type="number" min="1" max="16" step="1" value="8">
+    </div>
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="depth-select" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="depth-select">4</span>
+        <button class="step-btn" type="button" data-target="depth-select" data-delta="1">+</button>
+      </div>
+      <label>depth</label>
+      <input id="depth-select" class="stepper-source" type="number" min="1" max="5" step="1" value="4">
+    </div>
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="step-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="step-slider">40</span>
+        <button class="step-btn" type="button" data-target="step-slider" data-delta="1">+</button>
+      </div>
+      <label>step</label>
+      <input id="step-slider" class="stepper-source" type="number" min="10" max="999" step="1" value="40">
+    </div>
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="angle-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="angle-slider">45</span>
+        <button class="step-btn" type="button" data-target="angle-slider" data-delta="1">+</button>
+      </div>
+      <label>angle</label>
+      <!-- 2026-09-16 — was 5..90. The ceiling was never a rendering limit:
+           angle is the turtle's TURN PER STEP and the renderer takes any
+           value. driftTick wrapped at 360 while render() clamped at 90, so
+           drift walked 270 degrees that all drew identically as 90.
+           Now the full turn, 0..359, and data-wrap makes the stepper CYCLE
+           rather than stop: + at 359 gives 0, − at 0 gives 359. The default
+           stays 45, so the default script is unchanged. -->
+      <input id="angle-slider" class="stepper-source" type="number" min="0" max="359" step="1" value="45" data-wrap="1">
+    </div>
+
+    <!-- angle_minutes is a visible stepper again (2026-09-16); it was hidden
+         2026-07-02 as "Angle Fine". It is back because the SCRIPT is how a
+         user returns to a graphical state they wandered into, and Copy Up has
+         always written angle_minutes into the script — so the state was being
+         recorded with a precision the user had no way to set or correct.
+         One arcminute is the script's resolution: angle_seconds is a
+         sub-arcminute drift accumulator and is deliberately NOT written out.
+         Still in the DOM either way, because driftTick carries
+         seconds → minutes → degrees through them. -->
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="angle-minutes-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="angle-minutes-slider">0</span>
+        <button class="step-btn" type="button" data-target="angle-minutes-slider" data-delta="1">+</button>
+      </div>
+      <label>angle_minutes</label>
+      <input id="angle-minutes-slider" class="stepper-source" type="number" min="0" max="59" step="1" value="0">
+    </div>
+
+    <input id="angle-seconds-slider" type="hidden" value="0">
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="angle-drift-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="angle-drift-slider">0</span>
+        <button class="step-btn" type="button" data-target="angle-drift-slider" data-delta="1">+</button>
+      </div>
+      <label>angle_drift</label>
+      <input id="angle-drift-slider" class="stepper-source" type="number" min="0" max="100" step="1" value="0">
+    </div>
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="colour-speed-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="colour-speed-slider">4</span>
+        <button class="step-btn" type="button" data-target="colour-speed-slider" data-delta="1">+</button>
+      </div>
+      <!-- Back to naming the directive (2026-09-15, second pass). This label
+           is honest again because the readout beside it now shows the
+           directive's own value: script "%%bd_colour_speed 4" -> readout "4".
+           Earlier today this said "colour cycle", to stop it claiming to be a
+           directive while a 1..100 remap sat in the box. Showing the real
+           number is the better fix — the value the user reads is the value
+           they can search for in the script and in Memgraph, and no stored
+           data had to change to get it. -->
+      <label>colour_speed</label>
+      <input id="colour-speed-slider" class="stepper-source" type="number" min="-2" max="4" step="1" value="2">
+    </div>
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="weight-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="weight-slider">1.5</span>
+        <button class="step-btn" type="button" data-target="weight-slider" data-delta="1">+</button>
+      </div>
+      <label>weight</label>
+      <input id="weight-slider" class="stepper-source" type="number" min="0.5" max="5" step="0.1" value="1.5">
+    </div>
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="saturation-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="saturation-slider">100</span>
+        <button class="step-btn" type="button" data-target="saturation-slider" data-delta="1">+</button>
+      </div>
+      <label>saturation</label>
+      <input id="saturation-slider" class="stepper-source" type="number" min="0" max="100" step="1" value="100">
+    </div>
+
+    <div class="control-row">
+      <div class="stepper">
+        <button class="step-btn" type="button" data-target="lightness-slider" data-delta="-1">−</button>
+        <span class="stepper-value" data-target="lightness-slider">65</span>
+        <button class="step-btn" type="button" data-target="lightness-slider" data-delta="1">+</button>
+      </div>
+      <label>lightness</label>
+      <input id="lightness-slider" class="stepper-source" type="number" min="0" max="100" step="1" value="65">
+    </div>
+
+  </div>
+
+  </div>
+
+  <!-- lindenmayer library for L-system rewriting -->
+  <script src="https://cdn.jsdelivr.net/npm/lindenmayer/dist/lindenmayer.browser.js"></script>
+
+  <script>
+    'use strict';
+
+    // ── Element refs ──────────────────────────────────────────────────────────
+    const statusEl       = document.getElementById('status');
+    const symmetrySelect = document.getElementById('symmetry-select');
+    const depthSelect    = document.getElementById('depth-select');
+    const stepSlider     = document.getElementById('step-slider');
+    const angleSlider    = document.getElementById('angle-slider');
+    // ── The angle cycle (2026-09-16) ──────────────────────────────────────
+    // ONE definition of the range, because there were three and they disagreed:
+    // the input said 5..90, render() clamped 5..90, and driftTick wrapped at
+    // 360. Drift walked 270 degrees that every one of them drew as 90.
+    //
+    // The cycle is [0, 360): a full turn, wrapping 359 -> 0 like any bearing.
+    // 360 is never STORED, because 360 and 0 are the same figure and one
+    // picture must not have two spellings — a script has to round-trip.
+    //
+    // An earlier version of this started at 5, on the reasoning that turn-per-
+    // step 0 means the turtle never turns and the kolam collapses to a line.
+    // That was WRONG, and instructively so: the turn is
+    //     angle + angle_minutes/60 + angle_seconds/3600
+    // so angle 0 with minutes 1..59 gives turns of 1/60 to 59/60 of a degree —
+    // a whole region of very slowly curving, near-circular figures, and the
+    // most interesting part of the range rather than a dead spot. ONLY
+    // 0/0/0 is a straight line, and that is a legitimate state to ask for.
+    // This is exactly what restoring the angle_minutes stepper unlocks.
+    const ANGLE_MIN  = 0;
+    const ANGLE_MAX  = 360;            // exclusive — the wrap point, not a value
+    const ANGLE_SPAN = ANGLE_MAX - ANGLE_MIN;
+
+    // Wrap an angle into [0, 360). Handles both directions, so stepping DOWN
+    // from 0 lands on 359 rather than stopping dead.
+    function wrapAngle(deg) {
+      return ANGLE_MIN + ((((deg - ANGLE_MIN) % ANGLE_SPAN) + ANGLE_SPAN) % ANGLE_SPAN);
+    }
+
+    const angleMinutesSlider = document.getElementById('angle-minutes-slider');
+    const angleSecondsSlider = document.getElementById('angle-seconds-slider');
+    const angleDriftSlider  = document.getElementById('angle-drift-slider');
+    const colourSpeedSlider = document.getElementById('colour-speed-slider');
+    const weightSlider   = document.getElementById('weight-slider');
+    const saturationSlider = document.getElementById('saturation-slider');
+    const lightnessSlider  = document.getElementById('lightness-slider');
+    const canvas         = document.getElementById('kolam-canvas');
+    const ctx            = canvas.getContext('2d');
+    const canvasWrapper  = document.querySelector('.canvas-wrapper');
+    const controlPanel   = document.querySelector('.control-panel');
+    const moduleLayout   = document.querySelector('.module-layout');
+
+    // 2026-08-17 — mobile only: the canvas is dropped to the bottom of its
+    // wrapper, so bring the WHOLE stepper panel (background + scroll area) down
+    // to start level with the canvas top. margin-top (not padding-top) so the
+    // panel box itself moves — the space above the canvas stays genuinely empty
+    // (for the history pane to expand into) and the shorter scroll area can't
+    // scroll back up above the canvas. Desktop keeps the panel flush to the top.
+    function alignStepperTop() {
+      if (!controlPanel || !moduleLayout) return;
+      if (window.innerWidth > 500) { controlPanel.style.marginTop = ''; return; }
+      const offset = Math.max(0, Math.round(
+        canvas.getBoundingClientRect().top - moduleLayout.getBoundingClientRect().top
+      ));
+      controlPanel.style.marginTop = offset + 'px';
+    }
+
+    function updateCanvasSize() {
+      // A42 §42.9 — canvas is square; take the smaller of the wrapper's
+      // width and height so it never overflows the iframe in either axis.
+      // Fall back to width if height is 0 (early boot before layout).
+      const w = canvasWrapper.clientWidth;
+      const h = canvasWrapper.clientHeight;
+      const size = Math.floor(h > 0 ? Math.min(w, h) : w);
+      if (size > 0) {
+        canvas.width = size;
+        canvas.height = size;
+      }
+      alignStepperTop();
+    }
+
+    // ── Module state ──────────────────────────────────────────────────────────
+    let storedText    = ''; // full node text, kept current by render()
+    let lastError     = null;
+    let driftInterval = null; // setInterval handle for angle drift automation
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+    const setStatus = (msg) => { statusEl.textContent = msg; };
+
+    const postToParent = (message) => {
+      window.parent.postMessage(message, '*');
+    };
+
+    // ── %%bd_ Parser ──────────────────────────────────────────────────────────
+    // Two-state machine: text state and bracket state.
+    // Returns object of directive name/value pairs.
+    // Multi-line directives with [ ] have their raw text (including newlines) as value.
+    function parseBD(text) {
+      const directives = {};
+      const lines = text.split('\n');
+      let state = 'text';
+      let currentDirective = null;
+      let currentLines = [];
+
+      for (const line of lines) {
+        if (state === 'text') {
+          if (line.startsWith('%%bd_')) {
+            const spaceIdx = line.indexOf(' ');
+            if (spaceIdx === -1) continue;
+            const name = line.slice(5, spaceIdx);
+            const value = line.slice(spaceIdx + 1).trim();
+            if (value === '[') {
+              currentDirective = name;
+              currentLines = [];
+              state = 'bracket';
+            } else {
+              directives[name] = value;
+            }
+          }
+        } else if (state === 'bracket') {
+          if (line.trim() === '%%bd_]') {
+            directives[currentDirective] = currentLines.join('\n');
+            state = 'text';
+          } else {
+            currentLines.push(line);
+          }
+        }
+      }
+      return directives;
+    }
+
+    // ── Score Parser ──────────────────────────────────────────────────────────
+    // Extract axiom and production rules from %%bd_score content.
+    function parseScore(scoreText) {
+      const result = { axiom: '', productions: {} };
+      for (const line of scoreText.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        if (trimmed.startsWith('axiom:')) {
+          result.axiom = trimmed.slice(6).trim();
+        } else {
+          const colonIdx = trimmed.indexOf(':');
+          if (colonIdx !== -1) {
+            const symbol = trimmed.slice(0, colonIdx).trim();
+            const replacement = trimmed.slice(colonIdx + 1).trim();
+            result.productions[symbol] = replacement;
+          }
+        }
+      }
+      return result;
+    }
+
+    function safeParseNumber(value, fallback) {
+      const n = parseFloat(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function safeParseInt(value, fallback) {
+      const n = parseInt(value, 10);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function formatDirectiveNumber(value) {
+      if (!Number.isFinite(value)) return String(value);
+      const normalized = Math.round(value * 100) / 100;
+      return normalized.toString();
+    }
+
+    function setControlValues(directives) {
+      if (!symmetrySelect) return;
+      const symmetryValue = Math.min(Math.max(safeParseInt(directives.symmetry, 8), 1), 16);
+      symmetrySelect.value = String(symmetryValue);
+      const depthValue = Math.min(Math.max(safeParseInt(directives.depth, 4), 1), 5);
+      depthSelect.value = String(depthValue);
+      // 2026-09-15 — ceiling 200 → 999. The renderer never needed the 200;
+      // long steps read well, especially on desktop. Raised in all THREE
+      // places that clamp it (this one, the input's max attr, and the render
+      // clamp) — miss one and the control moves while the drawing does not.
+      stepSlider.value = String(Math.min(Math.max(safeParseNumber(directives.step, 40), 10), 999));
+      angleSlider.value = String(Math.min(Math.max(safeParseNumber(directives.angle, 45), ANGLE_MIN), ANGLE_MAX));
+      angleMinutesSlider.value = String(Math.min(Math.max(safeParseNumber(directives.angle_minutes, 0), 0), 59));
+      // angle_seconds is now internal-only — never present in the script.
+      // Only touch the slider if the directive was explicitly supplied
+      // (legacy scripts / _copy harness); otherwise leave the running total
+      // alone so the drift accumulator survives between renders.
+      if (directives.angle_seconds !== undefined) {
+        angleSecondsSlider.value = String(Math.min(Math.max(safeParseNumber(directives.angle_seconds, 0), 0), 59));
+      }
+      angleDriftSlider.value   = String(Math.min(Math.max(safeParseInt(directives.angle_drift, 0), 0), 100));
+      manageDriftInterval();
+      const colourSpeedValueParsed = Math.min(Math.max(safeParseNumber(directives.colour_speed, 4), 0.25), 16);
+      const colourSpeedExponent = Math.min(Math.max(Math.round(Math.log2(colourSpeedValueParsed)), -2), 4);
+      colourSpeedSlider.value = String(colourSpeedExponent);
+      weightSlider.value = String(Math.min(Math.max(safeParseNumber(directives.weight, 1.5), 0.5), 5));
+      saturationSlider.value = String(Math.min(Math.max(safeParseNumber(directives.saturation, 100), 0), 100));
+      lightnessSlider.value = String(Math.min(Math.max(safeParseNumber(directives.lightness, 65), 0), 100));
+
+      // Update value displays
+      updateValueDisplays();
+    }
+
+    function updateValueDisplays() {
+      // Sync every stepper's centre span from its hidden source input.
+      // Every stepper here shows the value its %%bd_ directive carries. Eight
+      // of them do that by showing the input verbatim; the colour one has to
+      // convert, because its input holds the exponent and the directive holds
+      // 2^exponent — see the branch below.
+      document.querySelectorAll('.stepper-value').forEach((span) => {
+        const targetId = span.dataset.target;
+        const input = targetId && document.getElementById(targetId);
+        if (!input) return;
+        if (targetId === 'colour-speed-slider') {
+          // Show the DIRECTIVE's value, so the readout, the label and the
+          // script all say the same number. The hidden input holds the
+          // exponent (-2..4); %%bd_colour_speed holds 2^exponent, i.e. one of
+          //   0.25  0.5  1  2  4  8  16
+          // and formatDirectiveNumber is the very function that writes the
+          // script, so the two can never drift apart.
+          //
+          // 2026-08-17 had remapped this to a 1..100 scale to keep the readout
+          // ≤3 chars. That bought width at the cost of truth: a stored Kolam
+          // read 4 in the script and 34 in the box. Reverted 2026-09-15 —
+          // deliberately WITHOUT touching any script or any Memgraph value.
+          //
+          // The leading zero is dropped (0.25 -> ".25", 0.5 -> ".5") purely
+          // for width. MEASURED: .control-row is 94px, two 34px buttons and
+          // two 2px gaps leave the span 22px, and its own border+padding
+          // leave 18px of text — 3 Courier chars at 0.7rem (the width "100"
+          // already proved), but not 4. ".25" is the same NUMBER as the
+          // script's "0.25"; widening the column instead would undo the
+          // 2026-08-17 tap-target spacing, which is a worse trade.
+          //
+          // Note the direction is counter-intuitive and always was: the
+          // renderer spans the hue over 360 * colourSpeed, so a BIGGER number
+          // cycles SLOWER. That is the directive's own meaning; the readout's
+          // job is to report it, not to reinterpret it.
+          const exp = parseFloat(input.value);
+          span.textContent = Number.isFinite(exp)
+            ? formatDirectiveNumber(2 ** exp).replace(/^0\./, '.')
+            : input.value;
+        } else {
+          span.textContent = input.value;
+        }
+      });
+    }
+
+    function setDirectiveValue(nodeText, name, value) {
+      const lines = nodeText.split('\n');
+      const directiveName = `%%bd_${name}`;
+      let replaced = false;
+      const updated = lines.map((line) => {
+        if (line.startsWith(`${directiveName} `)) {
+          replaced = true;
+          return `${directiveName} ${value}`;
+        }
+        return line;
+      });
+      if (!replaced) {
+        const insertAt = updated.findIndex((line) => line.trim() === '%%bd_score [');
+        const index = insertAt === -1 ? updated.length : insertAt;
+        updated.splice(index, 0, `${directiveName} ${value}`);
+      }
+      return updated.join('\n');
+    }
+
+    function applyControlDirectives(nodeText) {
+      let text = nodeText;
+      const controlValues = {
+        symmetry: symmetrySelect.value,
+        depth: depthSelect.value,
+        step: stepSlider.value,
+        angle: angleSlider.value,
+        angle_minutes: angleMinutesSlider.value,
+        // angle_seconds intentionally NOT written into the script — it's a
+        // sub-arc-minute drift accumulator that lives only in the module.
+        angle_drift:   angleDriftSlider.value,
+        colour_speed: formatDirectiveNumber(2 ** Number(colourSpeedSlider.value)),
+        weight: weightSlider.value,
+        saturation: saturationSlider.value,
+        lightness: lightnessSlider.value
+      };
+      for (const [name, value] of Object.entries(controlValues)) {
+        text = setDirectiveValue(text, name, value);
+      }
+      return text;
+    }
+
+    function handleControlChange() {
+      updateValueDisplays();
+      if (!storedText) return;
+      const updatedText = applyControlDirectives(storedText);
+      render(updatedText);
+    }
+
+    const controlInputs = [
+      symmetrySelect,
+      depthSelect,
+      stepSlider,
+      angleSlider,
+      angleMinutesSlider,
+      angleSecondsSlider,
+      angleDriftSlider,
+      colourSpeedSlider,
+      weightSlider,
+      saturationSlider,
+      lightnessSlider
+    ];
+
+    controlInputs.forEach((input) => {
+      input.addEventListener('input', handleControlChange);
+    });
+
+    // ── Stepper (+/−) buttons ─────────────────────────────────────────────────
+    // Media-module convention 2026-07-02: each numeric-arg %%bd_ directive gets a
+    // pair of buttons flanking a value display. The hidden source input still
+    // owns min / max / step / value; buttons read those attrs, clamp, and dispatch
+    // a native 'input' event so the existing handleControlChange chain fires.
+    // `magnitude` is how far ONE press moves the value. It defaults to the
+    // input's own step, which is what a single tap uses; the hold-repeat below
+    // passes a larger one so a long range stays reachable.
+    function stepControl(input, delta, magnitude) {
+      const min  = parseFloat(input.min);
+      const max  = parseFloat(input.max);
+      const step = parseFloat(input.step) || 1;
+      const cur  = parseFloat(input.value);
+      if (!Number.isFinite(cur)) return;
+      const move = Number.isFinite(magnitude) && magnitude > 0 ? magnitude : step;
+      let next = cur + delta * move;
+      // data-wrap marks a CYCLIC control — angle is one, because 360 degrees
+      // is a turn, not a ceiling. Stepping + past the top comes round to the
+      // bottom and vice versa, instead of stopping dead at an arbitrary edge.
+      if (input.dataset.wrap && Number.isFinite(min) && Number.isFinite(max)) {
+        const span = (max - min) + step;          // max is inclusive, so 0..359 spans 360
+        next = min + ((((next - min) % span) + span) % span);
+      } else {
+        if (Number.isFinite(min)) next = Math.max(min, next);
+        if (Number.isFinite(max)) next = Math.min(max, next);
+      }
+      // Round to the step grid, then trim FP noise (0.1 * 3 = 0.30000000000000004).
+      if (Number.isFinite(step) && step > 0) {
+        next = Math.round(next / step) * step;
+      }
+      next = parseFloat(next.toFixed(4));
+      const strVal = String(next);
+      if (input.value === strVal) return;      // hit min/max — no-op
+      input.value = strVal;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Hold-repeat acceleration, added 2026-09-15 with the step ceiling 200 → 999.
+    //
+    // A held button repeats every REPEAT_MS. At one step per tick that is ~17
+    // units a second, which crosses 10..200 in 12s — brisk — but 10..999 in
+    // 60s, so raising the ceiling alone would have given the user a maximum
+    // they could not actually reach. A ceiling you cannot get to is not a
+    // feature.
+    //
+    // Rather than hand-tune this control, the rate is derived FROM THE RANGE:
+    // whatever the control, holding the button crosses it in about
+    // FULL_TRAVERSE_MS. Self-scaling, so it needs no revisiting when a range
+    // changes again, and it cannot be set inconsistently across the nine
+    // steppers.
+    //
+    // Small ranges are untouched by construction — symmetry (1..16) works out
+    // below one step per tick, so it clamps back to its own step and behaves
+    // exactly as before. Only ranges big enough to be tedious speed up.
+    //
+    // The rate RAMPS IN over RAMP_MS instead of starting fast, so a short hold
+    // is still fine adjustment; a single tap never accelerates at all, because
+    // it never enters the repeat.
+    const REPEAT_MS        = 60;    // gap between repeats while held
+    const HOLD_MS          = 400;   // press-and-hold before repeating starts
+    const FULL_TRAVERSE_MS = 2500;  // target time to cross a whole range
+    const RAMP_MS          = 900;   // time to reach full speed
+
+    function repeatMagnitude(input, ticks) {
+      const step = parseFloat(input.step) || 1;
+      const min  = parseFloat(input.min);
+      const max  = parseFloat(input.max);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return step;
+      // Fastest magnitude this control is allowed: range / ticks-per-traverse.
+      const fastest = (max - min) / (FULL_TRAVERSE_MS / REPEAT_MS);
+      // Below one step, the control is already quick enough — leave it alone.
+      if (fastest <= step) return step;
+      const ramp = Math.min(1, (ticks * REPEAT_MS) / RAMP_MS);
+      const mag  = step + (fastest - step) * ramp;
+      // Stay on the control's own grid, so the value never lands off-step.
+      return Math.max(step, Math.round(mag / step) * step);
+    }
+
+    document.querySelectorAll('.step-btn').forEach((btn) => {
+      let holdTimer     = null;
+      let repeatTimer   = null;
+      let repeatTicks   = 0;
+
+      // magnitude omitted → stepControl uses the input's own step. That is the
+      // single-tap case, and it must stay exactly 1 unit however long the
+      // range is, or fine adjustment is lost.
+      const doStep = (magnitude) => {
+        const input = document.getElementById(btn.dataset.target);
+        const delta = parseFloat(btn.dataset.delta);
+        if (!input || input.disabled) return;
+        stepControl(input, delta, magnitude);
+      };
+
+      const start = (ev) => {
+        if (btn.disabled) return;
+        // Prevent the follow-up synthetic 'click' + iOS text-selection.
+        ev.preventDefault();
+        try { btn.setPointerCapture(ev.pointerId); } catch (_) {}
+        repeatTicks = 0;
+        doStep();
+        holdTimer = setTimeout(() => {
+          repeatTimer = setInterval(() => {
+            const input = document.getElementById(btn.dataset.target);
+            if (!input) return;
+            doStep(repeatMagnitude(input, repeatTicks));
+            repeatTicks += 1;
+          }, REPEAT_MS);
+        }, HOLD_MS);
+      };
+
+      const stop = () => {
+        if (holdTimer)   { clearTimeout(holdTimer);   holdTimer   = null; }
+        if (repeatTimer) { clearInterval(repeatTimer); repeatTimer = null; }
+        repeatTicks = 0;
+      };
+
+      btn.addEventListener('pointerdown',   start);
+      btn.addEventListener('pointerup',     stop);
+      btn.addEventListener('pointercancel', stop);
+      btn.addEventListener('pointerleave',  stop);
+    });
+
+    // True only while driftTick is inside render(). Read by the bd_av_state
+    // announcement so BD can distinguish "the timer moved the angle" from
+    // "someone changed a parameter".
+    let renderingFromDrift = false;
+
+    // ── Angle Drift Automation ────────────────────────────────────────────────
+    // Advance angle by drift (seconds of arc) on a depth-dependent interval,
+    // propagating carry through seconds → minutes → degrees. Uses setTimeout
+    // so the interval can change dynamically between ticks.
+
+    // Depth-dependent tick interval (Amendment 17)
+    function driftIntervalMs() {
+      const depth = parseInt(depthSelect.value, 10);
+      const table = { 1: 100, 2: 100, 3: 100, 4: 200, 5: 1000 };
+      return table[depth] ?? 200;
+    }
+
+    // ── The drift clock runs on WALL TIME, not on "when the last one finished"
+    //
+    // 2026-09-18. The next tick used to be scheduled after the render, so the
+    // real period was `render time + interval`. That is a SYSTEMATIC bias, not
+    // jitter: a bigger canvas costs more to draw and therefore ticks slower,
+    // for ever. BD's module and a viewer's square canvas are different sizes,
+    // so the two ran at genuinely different rates and drew apart all session —
+    // which is what a second press of View was having to collapse.
+    //
+    // Scheduling from the INTENDED time removes it at the cause. Both sides
+    // now advance at the same rate however much each costs to draw, and no
+    // measurement, no channel between them and no tuning is needed — which a
+    // feedback loop slowing the faster one would have required, and could
+    // oscillate.
+    //
+    // driftNextDue is the wall-clock moment the NEXT tick is owed.
+    let driftNextDue = 0;
+
+    function manageDriftInterval() {
+      const drift = parseInt(angleDriftSlider.value, 10);
+      if (drift === 0) {
+        if (driftInterval !== null) {
+          clearTimeout(driftInterval);
+          driftInterval = null;
+        }
+      } else if (driftInterval === null) {
+        driftNextDue = Date.now() + driftIntervalMs();
+        driftInterval = setTimeout(driftTick, driftIntervalMs());
+      }
+    }
+
+    function driftTick() {
+      // Do NOT null driftInterval here — manageDriftInterval (called via render →
+      // setControlValues) checks it to avoid double-scheduling. We overwrite the
+      // stale handle at the end once we know whether to continue.
+      const drift = parseInt(angleDriftSlider.value, 10);
+      if (drift === 0) {
+        driftInterval = null; // stopped — allow manageDriftInterval to restart later
+        return;
+      }
+
+      let secs = parseInt(angleSecondsSlider.value, 10) + drift;
+      let mins = parseInt(angleMinutesSlider.value, 10);
+      let degs = parseInt(angleSlider.value, 10);
+
+      // Propagate carry upward
+      mins += Math.floor(secs / 60);
+      secs  = secs % 60;
+
+      degs += Math.floor(mins / 60);
+      mins  = mins % 60;
+
+      // Was ((degs % 360) + 360) % 360 — a compass-bearing wrap, which is why
+      // it disagreed with a renderer that clamped at 90. Now the one wrap.
+      degs  = wrapAngle(degs);
+
+      angleSlider.value        = String(degs);
+      angleMinutesSlider.value = String(mins);
+      angleSecondsSlider.value = String(secs);
+
+      updateValueDisplays();
+
+      if (storedText) {
+        const updatedText = applyControlDirectives(storedText);
+        // Tell render() this frame came from the drift timer, not from a
+        // person or a script. BD uses it to decide what to forward to a
+        // viewer — see the bd_av_state announcement in render(). render() is
+        // synchronous, so the flag cannot outlive the call; try/finally
+        // anyway, because a throw inside render must not leave every
+        // subsequent frame wearing this label.
+        renderingFromDrift = true;
+        try { render(updatedText); } finally { renderingFromDrift = false; }
+      }
+
+      // Broadcast the drift-updated fields to the host harness so its outer
+      // steppers / textarea can stay in sync while drift is running.
+      // Only the three fields that change during drift are sent — keeps the
+      // message small (~5 msg/sec at depth 4).
+      postToParent({
+        type: 'bd_state_update',
+        angle: degs,
+        angle_minutes: mins,
+        angle_seconds: secs
+      });
+
+      // Overwrite the now-fired (stale) handle with the next tick, timed from
+      // when it was DUE rather than from now. Anything the render cost is
+      // absorbed here instead of being added to every period.
+      const interval = driftIntervalMs();
+      driftNextDue += interval;
+      // Too far behind to catch up honestly — a slow machine, or a tab that
+      // was suspended and has just come back. Give up the backlog rather than
+      // fire a burst of ticks trying to earn it back: a spiral of catch-up
+      // renders on a phone waking from sleep would be worse than the lost
+      // time, and a View press is the way back into step anyway.
+      if (Date.now() - driftNextDue > interval * 5) {
+        driftNextDue = Date.now() + interval;
+      }
+      driftInterval = setTimeout(driftTick, Math.max(0, driftNextDue - Date.now()));
+    }
+
+    // Manage timeout whenever the drift slider moves
+    angleDriftSlider.addEventListener('input', manageDriftInterval);
+
+    // ── Turtle State ──────────────────────────────────────────────────────────
+    function createTurtleState(x, y) {
+      return {
+        x: x,
+        y: y,
+        angle: 0,
+        stack: []
+      };
+    }
+
+    // ── Curved Line Drawing ───────────────────────────────────────────────────
+    // Draw a quadratic bezier curve for a turtle forward step.
+    // Control point offset perpendicular to direction.
+    function drawCurvedStep(ctx, state, step) {
+      const rad = (state.angle * Math.PI) / 180;
+      const nextX = state.x + Math.cos(rad) * step;
+      const nextY = state.y + Math.sin(rad) * step;
+
+      // Control point perpendicular to direction
+      const perpRad = rad + Math.PI / 2;
+      const cpOffset = step * 0.3;
+      const cpx = (state.x + nextX) / 2 + Math.cos(perpRad) * cpOffset;
+      const cpy = (state.y + nextY) / 2 + Math.sin(perpRad) * cpOffset;
+
+      ctx.quadraticCurveTo(cpx, cpy, nextX, nextY);
+      state.x = nextX;
+      state.y = nextY;
+    }
+
+    // ── Turtle Path Renderer ─────────────────────────────────────────────────
+    // Draw the L-system path to an offscreen context, optionally tracking hue.
+    function renderTurtlePath(lsystemResult, params, ctx) {
+      const state = createTurtleState(canvas.width / 2, canvas.height / 2);
+      const startX = state.x;
+      const startY = state.y;
+      const angleTracked = params.stroke.toLowerCase() === 'angle';
+      const baseStroke = angleTracked ? null : params.stroke;
+
+      ctx.lineWidth = params.weight;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+
+      for (const symbol of lsystemResult) {
+        switch (symbol) {
+          case 'F': {
+            const rad = (state.angle * Math.PI) / 180;
+            const nextX = state.x + Math.cos(rad) * params.effectiveStep;
+            const nextY = state.y + Math.sin(rad) * params.effectiveStep;
+            const perpRad = rad + Math.PI / 2;
+            const cpOffset = params.effectiveStep * 0.3;
+            const cpx = (state.x + nextX) / 2 + Math.cos(perpRad) * cpOffset;
+            const cpy = (state.y + nextY) / 2 + Math.sin(perpRad) * cpOffset;
+
+            ctx.beginPath();
+            ctx.moveTo(state.x, state.y);
+            ctx.quadraticCurveTo(cpx, cpy, nextX, nextY);
+            if (angleTracked) {
+              const hue = (((state.angle % (360 * params.colourSpeed)) + (360 * params.colourSpeed)) % (360 * params.colourSpeed)) / params.colourSpeed;
+              ctx.strokeStyle = `hsl(${hue}, ${params.saturation}%, ${params.lightness}%)`;
+            } else {
+              ctx.strokeStyle = baseStroke;
+            }
+            ctx.stroke();
+
+            state.x = nextX;
+            state.y = nextY;
+            break;
+          }
+
+          case 'f': {
+            const rad = (state.angle * Math.PI) / 180;
+            state.x += Math.cos(rad) * params.effectiveStep;
+            state.y += Math.sin(rad) * params.effectiveStep;
+            break;
+          }
+
+          case '+':
+            state.angle += params.effectiveAngle;
+            break;
+
+          case '-':
+            state.angle -= params.effectiveAngle;
+            break;
+
+          case '[':
+            state.stack.push({ x: state.x, y: state.y, angle: state.angle });
+            break;
+
+          case ']':
+            if (state.stack.length > 0) {
+              const saved = state.stack.pop();
+              state.x = saved.x;
+              state.y = saved.y;
+              state.angle = saved.angle;
+            }
+            break;
+
+          case '|':
+            state.angle += 180;
+            break;
+
+          default:
+            break;
+        }
+      }
+
+      return {
+        startX,
+        startY,
+        endX: state.x,
+        endY: state.y
+      };
+    }
+
+    // ── Symmetry Wrapper ──────────────────────────────────────────────────────
+    // Stamp the offscreen canvas n times with rotational symmetry.
+    function applySymmetry(offscreen, symmetry) {
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const sectorAngle = (2 * Math.PI) / symmetry;
+
+      ctx.save();
+      ctx.translate(cx, cy);
+      for (let i = 0; i < symmetry; i++) {
+        ctx.rotate(sectorAngle);
+        ctx.drawImage(offscreen, -cx, -cy);
+      }
+      ctx.restore();
+    }
+
+    // ── Closure Checker ───────────────────────────────────────────────────────
+    // Check if the path closes (end position ≈ start position).
+    function checkClosure(startX, startY, endX, endY, step) {
+      const dist = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+      return dist < step / 2;
+    }
+
+    // ── Render Function ───────────────────────────────────────────────────────
+    // Called on BD_INIT. Parses directives, runs L-system, renders kolam.
+    function render(nodeText) {
+      try {
+        setStatus('Rendering…');
+        storedText = nodeText;
+
+        // 2026-09-14 — announce the live script to the host on EVERY render.
+        //
+        // The host cannot otherwise know that anything changed: the steppers
+        // are in here, not out there, and BD_UPDATE is pull-only (it answers
+        // BD_REQUEST_UPDATE and says nothing on its own). An Ancillary Viewer
+        // being driven from these controls therefore froze after its first
+        // frame.
+        //
+        // A NEW type deliberately, not BD_UPDATE: BD's BD_UPDATE handler writes
+        // into the focused card, so reusing it would rewrite the user's card
+        // several times a second while the drift runs. Anything that does not
+        // know this type ignores it — the frozen standalones included.
+        // fromDrift lets BD forward EVERY real parameter change to a viewer —
+        // including one arriving via the Down button from a script — while
+        // still declining to forward the drift timer's own angle steps, which
+        // the viewer is computing for itself. Before this flag BD had to guess
+        // from a text diff, and an angle-only change made by a PERSON while
+        // drift was running looked exactly like a drift tick and was dropped.
+        try { postToParent({ type: 'bd_av_state', text: storedText, fromDrift: renderingFromDrift }); } catch (_) {}
+
+        if (typeof nodeText !== 'string') {
+          console.error('visual_module: render() expected text string, got:', nodeText);
+          throw new Error('No valid text provided in BD_INIT payload');
+        }
+
+        // Parse directives
+        const directives = parseBD(nodeText);
+
+        // Extract and parse score block
+        const scoreRaw = directives.score;
+        if (!scoreRaw) {
+          throw new Error('No score found in node text');
+        }
+
+        const score = parseScore(scoreRaw);
+        if (!score.axiom) {
+          throw new Error('No axiom found in score');
+        }
+
+        // Apply defaults for any missing rendering parameters
+        const params = {
+          symmetry:   safeParseInt(directives.symmetry, 8),
+          depth:      Math.min(Math.max(safeParseInt(directives.depth, 4), 1), 5),
+          step:       Math.min(Math.max(safeParseNumber(directives.step, 40), 10), 999),
+          angle:      Math.min(Math.max(safeParseNumber(directives.angle, 45), ANGLE_MIN), ANGLE_MAX),
+          stroke:     directives.stroke                  || 'angle',   /* A42 fix: was '#4a9b8e' — that killed hue cycling when the script omitted %%bd_stroke angle. */
+          background: directives.background             || '#0a0a0f',
+          weight:     Math.min(Math.max(safeParseNumber(directives.weight, 1.5), 0.5), 5),
+          saturation: Math.min(Math.max(safeParseNumber(directives.saturation, 100), 0), 100),
+          lightness:  Math.min(Math.max(safeParseNumber(directives.lightness, 65), 0), 100),
+          colourSpeed: Math.min(Math.max(safeParseNumber(directives.colour_speed, 4), 0.25), 16)
+        };
+
+        // Calculate effective angle including fine (minutes) and very fine (seconds) adjustments.
+        // angle_seconds is internal-only (not in the script) — read live from the slider so drift
+        // updates the visual every tick, not just when minutes carry over.
+        const liveSeconds = safeParseNumber(angleSecondsSlider.value, 0);
+        params.effectiveAngle = params.angle + (safeParseNumber(directives.angle_minutes, 0) / 60) + (liveSeconds / 3600);
+        // Ensure colourSpeed is valid for hue cycling
+        if (!Number.isFinite(params.colourSpeed) || params.colourSpeed <= 0) {
+          params.colourSpeed = 4;
+        }
+
+        // Cap depth at 5
+        if (params.depth > 5) {
+          params.depth = 5;
+          setStatus('Rendering… (depth capped at 5)');
+        }
+
+        updateCanvasSize();
+        // Clear canvas with background
+        ctx.fillStyle = params.background;
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Add subtle border
+        ctx.strokeStyle = '#4a9b8e';
+        ctx.globalAlpha = 0.3;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0, 0, canvas.width, canvas.height);
+        ctx.globalAlpha = 1;
+
+        // Run L-system rewriting
+        const lsystem = new LSystem({
+          axiom: score.axiom,
+          productions: score.productions
+        });
+        lsystem.iterate(params.depth);
+        const lsystemResult = lsystem.getString();
+
+        if (!lsystemResult) {
+          throw new Error('L-system produced no output');
+        }
+
+        // Compute depth-scaled step size so the path stays within canvas bounds.
+        const effectiveStep = params.step / Math.pow(3, Math.max(0, params.depth - 1));
+        params.effectiveStep = effectiveStep;
+
+        setControlValues(directives);
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const octx = offscreen.getContext('2d');
+
+        const turtle = renderTurtlePath(lsystemResult, params, octx);
+
+        // Apply symmetry
+        applySymmetry(offscreen, params.symmetry);
+
+        setStatus('');   // 2026-08-17 — no "Ready" clutter; errors still shown via setStatus
+
+        lastError = null;
+
+      } catch (err) {
+        lastError = err.message;
+        setStatus(`Error: ${err.message}`);
+        postToParent({ type: 'BD_ERROR', payload: { message: err.message } });
+        console.error('render error:', err);
+      }
+    }
+
+    window.addEventListener('resize', () => {
+      updateCanvasSize();
+      if (storedText) {
+        render(storedText);
+      }
+    });
+
+    // ── Waiting state (A42 §42.4) ────────────────────────────────────────────
+    // Module starts in a waiting state — no render until first bd_script_update.
+    // All spinner / select inputs disabled; canvas shows centred "Waiting for
+    // script..." message. First bd_script_update clears both.
+    let waitingForFirstScript = true;
+
+    function disableControls() {
+      document.querySelectorAll('.control-panel input, .control-panel select, .control-panel .step-btn')
+        .forEach(el => { el.disabled = true; });
+    }
+    function enableControls() {
+      document.querySelectorAll('.control-panel input, .control-panel select, .control-panel .step-btn')
+        .forEach(el => { el.disabled = false; });
+    }
+    function drawWaitingMessage() {
+      // 2026-07-05 — bail if the script has already arrived. The initial draw
+      // is scheduled via double requestAnimationFrame (see below) to let
+      // layout flush. On return-from-standalone, bd_script_update can arrive
+      // via BD_READY round-trip in less than 2 frames — if it does, render()
+      // has already painted the kolam, and this call would black-overpaint it.
+      if (!waitingForFirstScript) return;
+      updateCanvasSize();
+      ctx.fillStyle = '#0a0a0f';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = '#9e9e90';
+      ctx.font = 'italic 18px Georgia, "Times New Roman", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Waiting for script...', canvas.width / 2, canvas.height / 2);
+      // A42 diagnostic — surface the measured dimensions so we can tell
+      // whether the wrapper (layout) or the canvas (JS sizing) is the
+      // constraint. Remove once canvas-size issue is resolved.
+      const w = canvasWrapper.clientWidth;
+      const h = canvasWrapper.clientHeight;
+      const bw = document.body.clientWidth;
+      const bh = document.body.clientHeight;
+      setStatus(`Waiting… body ${bw}×${bh}  wrap ${w}×${h}  canvas ${canvas.width}×${canvas.height}`);
+    }
+
+    // ── The renderer was BLIND (2026-09-16) ───────────────────────────────
+    // BD forwards ITS console to the server log, and that log has settled
+    // arguments that days of reasoning could not. But this file runs in an
+    // IFRAME: its console and its uncaught errors stayed inside that document
+    // and reached nobody. Three bugs in this area were debugged without ever
+    // being able to see what the renderer thought was happening, and render()
+    // catches its own exceptions, so a throw in here is silent twice over.
+    //
+    // So: forward to the host, which forwards to the server log. Best-effort
+    // and non-fatal by construction — a logger that can break the thing it is
+    // logging is worse than no logger.
+    (function forwardModuleConsole() {
+      const send = (level, args) => {
+        try {
+          const line = Array.prototype.map.call(args, (a) => {
+            if (typeof a === 'string') return a;
+            // An Error JSON.stringifies to "{}" — its message and stack are
+            // non-enumerable. That is exactly what happened the first time
+            // this ran: 506 lines of "render error: {}", the one fact needed
+            // missing from all of them.
+            if (a instanceof Error) return a.message + (a.stack ? ' | ' + a.stack.split('\n')[1] : '');
+            try { return JSON.stringify(a); } catch (_) { return String(a); }
+          }).join(' ');
+          postToParent({ type: 'bd_module_log', level: level, line: line.slice(0, 600) });
+        } catch (_) {}
+      };
+      ['log', 'warn', 'error'].forEach((level) => {
+        const original = console[level].bind(console);
+        console[level] = function () { send(level, arguments); original.apply(console, arguments); };
+      });
+      window.addEventListener('error', (e) => {
+        send('error', ['uncaught: ' + (e && e.message) + ' @ ' + (e && e.lineno)]);
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        send('error', ['unhandled rejection: ' + (e && e.reason && (e.reason.message || e.reason))]);
+      });
+    })();
+
+    // Wrapped render — first call clears the waiting state.
+    function renderFromScript(scriptText) {
+      if (waitingForFirstScript) {
+        waitingForFirstScript = false;
+        enableControls();
+      }
+      // Only script ARRIVALS are logged, never the drift timer's renders —
+      // those fire 5-10 times a second and would drown the log.
+      try {
+        const d = parseBD(scriptText);
+        const keys = Object.keys(d);
+        console.log('[module] script in: ' + scriptText.length + ' chars, ' +
+          keys.length + ' directives' +
+          (keys.length
+            ? ' {' + keys.map(k => k + '=' + String(d[k]).slice(0, 24)).join(' ') + '}'
+            : '  <-- NONE PARSED; every value will be a default'));
+      } catch (err) {
+        console.error('[module] could not parse the incoming script: ' + err.message);
+      }
+      render(scriptText);
+    }
+
+    // Initialise waiting state.
+    disableControls();
+    // Sync stepper display spans from their source-input defaults so any
+    // HTML/JS drift shows the correct pre-render value (esp. the colour
+    // stepper's exponent → multiplier conversion: the markup's hardcoded 4 is
+    // only right for the default exponent 2, and this call is what keeps it
+    // right if that default ever moves).
+    updateValueDisplays();
+    // Defer initial draw until layout has flushed — otherwise the wrapper's
+    // clientWidth / clientHeight can still be 0 and the canvas ends up at its
+    // default 300×150 (A42 fix — the "canvas only 40% of iframe depth" bug).
+    requestAnimationFrame(() => requestAnimationFrame(drawWaitingMessage));
+
+    // ResizeObserver on the wrapper handles every re-layout: initial flush,
+    // iframe/window resize, orientation change, content shift. Redraws the
+    // waiting message OR re-renders the stored script at the new size.
+    if (typeof ResizeObserver === 'function') {
+      const ro = new ResizeObserver(() => {
+        if (waitingForFirstScript) {
+          drawWaitingMessage();
+        } else if (storedText) {
+          updateCanvasSize();
+          render(storedText);
+        }
+      });
+      ro.observe(canvasWrapper);
+    }
+    // Belt-and-braces for older browsers without ResizeObserver.
+    window.addEventListener('resize', () => {
+      if (waitingForFirstScript) drawWaitingMessage();
+    });
+
+    // ── Message Handlers ──────────────────────────────────────────────────────
+    // A42 protocol names are bd_script_*. Legacy BD_INIT / BD_REQUEST_UPDATE
+    // kept as aliases so the reference index_copy.html harness still works.
+    window.addEventListener('message', (event) => {
+      try {
+        const { type, payload, script } = event.data;
+        switch (type) {
+          case 'bd_script_update': {
+            const s = typeof script === 'string' ? script : '';
+            renderFromScript(s);
+            break;
+          }
+          case 'bd_script_request': {
+            window.parent.postMessage(
+              { type: 'bd_script_response', script: storedText },
+              '*'
+            );
+            break;
+          }
+
+          case 'BD_INIT': {
+            const rawText = payload && payload.text;
+            const nodeText = typeof rawText === 'string' ? rawText : rawText == null ? '' : String(rawText);
+            renderFromScript(nodeText);
+            break;
+          }
+          case 'BD_STOP':
+            if (driftInterval !== null) { clearTimeout(driftInterval); driftInterval = null; }
+            ctx.fillStyle = '#0a0a0f';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            setStatus('Stopped');
+            break;
+          case 'BD_REQUEST_UPDATE':
+            postToParent({ type: 'BD_UPDATE', payload: { text: storedText } });
+            break;
+
+          // bd_ui_config: host harness (preview.html, BD viewer, etc.) tells
+          // the module to hide its own control panel because the harness is
+          // supplying an outer control surface. The renderer + canvas stay
+          // fully functional — only the built-in stepper column is hidden.
+          case 'bd_ui_config': {
+            const hide = event.data && event.data.hideControls === true;
+            document.body.classList.toggle('controls-hidden', hide);
+            // Canvas needs a resize kick so it fills the reclaimed space.
+            updateCanvasSize();
+            if (storedText) render(storedText);
+            break;
+          }
+
+          // MM2 (2026-07-11) — bd_param_update: host harness sets a single
+          // directive value directly instead of rewriting the whole script.
+          // Used by the EV's Freeze button (angle_drift → 0 and back) and
+          // any future single-knob interactions. Writes into the underlying
+          // hidden <input class="stepper-source"> and dispatches an `input`
+          // event so the existing handleControlChange path fires unchanged
+          // — re-renders the script, re-broadcasts state, etc.
+          //
+          // Recognised names map to hidden-input IDs by convention:
+          //   angle_drift → #angle-drift-slider, angle → #angle-slider, etc.
+          // Unknown names are silently ignored.
+          case 'bd_param_update': {
+            const name  = event.data && event.data.name;
+            const value = event.data && event.data.value;
+            if (typeof name !== 'string') break;
+            const inputId = name.replace(/_/g, '-') + '-slider';
+            const input   = document.getElementById(inputId)
+                         || document.getElementById(name);
+            if (input) {
+              input.value = String(value);
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+            break;
+          }
+
+          default:
+            // Ignore unrecognised types
+            break;
+        }
+      } catch (err) {
+        console.error('visual_module: error handling postMessage', err);
+      }
+    });
+
+    // ── Signal module loaded ──────────────────────────────────────────────────
+    postToParent({ type: 'BD_READY' });
+  </script>
+
+</body>
+</html>

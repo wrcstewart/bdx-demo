@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BDX — controller</title>
+<!--
+  BDX — the controller half of the demo.
+
+  A script panel, the steppers, and the drawing. It holds the SCRIPT, which is
+  the thing that is true: the only form that can be shared, saved or collaged.
+  Everything else — the steppers, the drawing here, the viewer on another
+  device — is a view of it.
+
+  It needs NO database, no corpus, no graph, no accounts. Two files and a relay.
+
+  THE STEPPERS ARE NOT MINE. The renderer carries its own control panel; a host
+  that wants to supply its own hides it with bd_ui_config. Not hiding it is how
+  this page gets steppers for free, and is the cheapest way to build a
+  controller for any module that follows the convention.
+-->
+<style>
+  :root { color-scheme: dark; }
+  body {
+    margin: 0; background: #0a0a0f; color: #c9c9d4;
+    font: 13px/1.5 system-ui, sans-serif;
+    display: flex; flex-direction: column; height: 100dvh;
+  }
+  header {
+    display: flex; align-items: center; gap: 12px;
+    padding: 8px 12px; border-bottom: 1px solid #23232e; flex: 0 0 auto;
+  }
+  header h1 { font-size: 13px; font-weight: 600; margin: 0; color: #e8e8f0; }
+  header .sub { color: #6a6a78; font-size: 11px; }
+  #view {
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  #view:hover { background: #17301f; }
+  #state { font-size: 11px; color: #7a7a86; }
+  #state.problem { color: #d98a8a; }
+  main { flex: 1 1 auto; display: flex; min-height: 0; }
+  #frame { flex: 1 1 auto; border: 0; min-width: 0; background: #0a0a0f; }
+  aside {
+    flex: 0 0 300px; display: flex; flex-direction: column;
+    border-left: 1px solid #23232e; min-width: 0;
+  }
+  aside label {
+    padding: 6px 10px 4px; font-size: 11px; color: #6a6a78;
+    display: flex; align-items: center; gap: 8px;
+  }
+  aside label input { width: 15px; height: 15px; accent-color: #c9a227; margin: 0; }
+  #script {
+    flex: 1 1 auto; margin: 0 10px 10px; padding: 8px; resize: none;
+    background: #101018; color: #cfcfda; border: 1px solid #2a2a3a; border-radius: 3px;
+    /* 16px or iOS zooms the page when it takes focus. */
+    font: 16px/1.45 'Courier New', monospace;
+  }
+  @media (max-width: 760px) {
+    main { flex-direction: column; }
+    aside { flex: 0 0 42%; border-left: 0; border-top: 1px solid #23232e; }
+  }
+</style>
+</head>
+<body>
+  <header>
+    <h1>BDX</h1>
+    <span class="sub">controller &mdash; the script is the truth</span>
+    <span id="state">connecting&hellip;</span>
+    <button id="view" type="button" title="Open a viewer and drive it from here">View</button>
+  </header>
+  <main>
+    <!-- No src at load. The renderer announces BD_READY as soon as it loads, and
+         if the iframe starts before the listener below is attached that
+         announcement is lost for ever, leaving a page that looks connected and
+         never draws. Set from JS, after the listener. -->
+    <iframe id="frame" title="renderer"></iframe>
+    <aside>
+      <label><input type="checkbox" id="auto" checked> auto &mdash; keep the script and the steppers in step</label>
+      <textarea id="script" spellcheck="false"></textarea>
+    </aside>
+  </main>
+
+<script>
+'use strict';
+
+// ── Where the relay is ──────────────────────────────────────────────────────
+//
+// ?rx=<origin> overrides, which is what lets this PUBLISHED page be pointed at
+// your own relay without forking anything. Default below; localhost when this
+// page is itself served from localhost, so a developer needs no query string.
+const DEFAULT_RX = 'https://rx.example.invalid';
+const params  = new URLSearchParams(location.search);
+const RX = params.get('rx') ||
+           (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+              ? location.protocol + '//' + location.hostname + ':8081'
+              : DEFAULT_RX);
+
+const MODULE_ID = 'kolam';          // which KIND of viewer a token is for
+const frame  = document.getElementById('frame');
+const script = document.getElementById('script');
+const auto   = document.getElementById('auto');
+const stateEl = document.getElementById('state');
+
+function say(t, problem) {
+  stateEl.textContent = t;
+  stateEl.classList.toggle('problem', !!problem);
+}
+
+const DEFAULT_SCRIPT = [
+  '%%bd_module kolam',
+  '%%bd_symmetry 8',
+  '%%bd_depth 2',
+  '%%bd_step 50',
+  '%%bd_angle 90',
+  '%%bd_angle_minutes 0',
+  '%%bd_angle_drift 10',
+  '%%bd_colour_speed 4',
+  '%%bd_stroke angle',
+  '%%bd_saturation 100',
+  '%%bd_lightness 65',
+  '%%bd_background #0a0a0f',
+  '%%bd_weight 1.5',
+  '%%bd_score [',
+  'axiom: F+F+F+F+F+F+F+F',
+  'F: F+F-F-F+F+F+F-F',
+  '%%bd_]',
+  ''
+].join('\n');
+
+// ── The renderer ────────────────────────────────────────────────────────────
+let moduleReady = false, pending = null;
+window.addEventListener('message', (e) => {
+  const d = e && e.data;
+  if (!d) return;
+  if (d.type === 'BD_READY') {
+    moduleReady = true;
+    post(pending || (script.value = DEFAULT_SCRIPT));
+    pending = null;
+    return;
+  }
+  // The renderer announces its live script on EVERY render — the only way a
+  // host learns that a stepper moved. fromDrift marks the ones the drift timer
+  // caused rather than a person.
+  if (d.type === 'bd_av_state' && typeof d.text === 'string') onRender(d.text, !!d.fromDrift);
+});
+function post(text) {
+  if (!moduleReady) { pending = text; return; }
+  try { frame.contentWindow.postMessage({ type: 'bd_script_update', script: text }, '*'); } catch (_) {}
+}
+frame.src = 'renderer.html';
+
+// ── Script ↔ steppers, and the push to a viewer ─────────────────────────────
+//
+// The rule BD arrived at the hard way, and the reason this is not simply
+// "push every frame":
+//
+// A drift tick changes only the angle, and the viewer runs the SAME renderer
+// from the SAME script, so it is already advancing the angle itself. Sending
+// ours can only overwrite its smooth value with our older one — invisible
+// side by side, and on a phone, where the controller is a background tab and
+// is throttled, it snaps the viewer backwards every few seconds.
+//
+// So: THE SCRIPT RECORDS THE ANGLE, THE VIEWER COMPUTES IT. Everything else
+// goes straight through.
+const ANGLE_LINES = /^%%bd_angle(?:_minutes|_seconds)?[ \t]+.*$/gm;
+const withoutAngle = (t) => t.replace(ANGLE_LINES, '');
+let lastPushed = null;
+
+function pushToViewer(text) {
+  if (!socket || !socket.connected || !text) return;
+  if (text === lastPushed) return;
+  lastPushed = text;
+  socket.emit('msg', { type: 'av_push', moduleId: MODULE_ID, payload: { script: text } });
+}
+
+// Written no more than once a second while drifting, or the panel would be
+// unreadable and unselectable at five to ten writes a second.
+let lastWrite = 0, pendingText = null, pendingTimer = null;
+function onRender(text, fromDrift) {
+  if (!auto.checked) return;
+  if (fromDrift && lastPushed && withoutAngle(text) === withoutAngle(lastPushed)) {
+    // The angle alone. Record it in the panel, do not send it.
+    if (Date.now() - lastWrite >= 1000) writePanel(text);
+    else {
+      pendingText = text;
+      if (!pendingTimer) pendingTimer = setTimeout(() => {
+        pendingTimer = null;
+        const t = pendingText; pendingText = null;
+        if (t && auto.checked) writePanel(t);
+      }, 1000 - (Date.now() - lastWrite));
+    }
+    return;
+  }
+  writePanel(text);
+  pushToViewer(text);
+}
+function writePanel(text) {
+  lastWrite = Date.now();
+  // Never under a live cursor. Recording is data and must not stop; redrawing
+  // the panel is presentation and can wait until you are out of it.
+  if (document.activeElement === script) return;
+  if (script.value !== text) script.value = text;
+}
+
+// A hand edit drives the renderer AND the viewer. Debounced, and held back
+// while a directive has no value: the renderer fills a missing value from its
+// own default, so sending a half-typed line makes the figure jump to the
+// default instead of holding still.
+let editTimer = null;
+script.addEventListener('input', (e) => {
+  if (!e.isTrusted) return;                 // our own writes dispatch input too
+  clearTimeout(editTimer);
+  editTimer = setTimeout(() => {
+    const text = script.value;
+    if (!/^%%bd_\w+/m.test(text)) return;
+    const bare = /^%%bd_(center|hint|chunk)[ \t]*$/;
+    if (text.split('\n').some(l => /^%%bd_\w+[ \t]*$/.test(l) && !bare.test(l))) return;
+    if (auto.checked) post(text);
+    pushToViewer(text);
+  }, 600);
+});
+script.addEventListener('blur', () => { if (auto.checked && lastSeen) writePanel(lastSeen); });
+let lastSeen = null;
+window.addEventListener('message', (e) => {
+  const d = e && e.data;
+  if (d && d.type === 'bd_av_state' && typeof d.text === 'string') lastSeen = d.text;
+});
+// Re-ticking means "they are one thing again", and the SCRIPT is the one that
+// is true — so the steppers follow it, not the other way round.
+auto.addEventListener('change', () => {
+  if (auto.checked && /^%%bd_\w+/m.test(script.value)) { post(script.value); pushToViewer(script.value); }
+});
+
+// ── The relay ───────────────────────────────────────────────────────────────
+let socket = null, viewerWindow = null;
+
+const s = document.createElement('script');
+s.src = RX + '/socket.io/socket.io.js';
+s.onload = connect;
+s.onerror = () => say('no relay at ' + RX, true);
+document.head.appendChild(s);
+
+function connect() {
+  socket = io(RX);
+  socket.on('connect',       () => say('relay: connected'));
+  socket.on('connect_error', (e) => say('relay refused: ' + (e && e.message), true));
+  socket.on('disconnect',    (r) => say('relay lost: ' + r, true));
+  socket.on('msg', (m) => {
+    if (!m) return;
+    // A viewer has just connected and is asking what to show. It knows when it
+    // is ready and nobody else does, so answering beats guessing with a timer.
+    if (m.type === 'av_request_state') {
+      const text = lastSeen || script.value;
+      lastPushed = null;                    // a resync is never a duplicate
+      pushToViewer(text);
+      return;
+    }
+    // The viewer's way-back button. It carries what the viewer was showing —
+    // on a phone it closes itself a moment later, so this is the only chance.
+    if (m.type === 'av_return') {
+      if (typeof m.script === 'string' && m.script) { script.value = m.script; post(m.script); }
+      try { window.focus(); } catch (_) {}
+      say('viewer handed back');
+      return;
+    }
+  });
+}
+
+// ── Re-issuing a token to a viewer whose own is spent ───────────────────────
+//
+// A token is single-use, so a viewer that drops for longer than the relay's
+// recovery window can never reconnect: every retry re-runs the handshake
+// against a token that no longer exists. The viewer asks us for another — only
+// a controller can mint one, so this is a request, not the viewer helping
+// itself.
+//
+// Narrowed twice: only a window WE opened, and the answer is aimed at that
+// window's own origin. A page that merely guessed the message shape gets
+// nothing.
+window.addEventListener('message', (e) => {
+  const d = e && e.data;
+  if (!d || d.type !== 'bd_av_token_request') return;
+  if (!viewerWindow || e.source !== viewerWindow) return;
+  if (!socket || !socket.connected) return;
+  let done = false;
+  const onToken = (m) => {
+    if (!m || m.type !== 'module_token' || done) return;
+    done = true;
+    socket.off('msg', onToken);
+    if (!m.token) return;
+    try { e.source.postMessage({ type: 'bd_av_token', token: m.token }, e.origin); } catch (_) {}
+    say('re-issued a token to the viewer');
+  };
+  socket.on('msg', onToken);
+  socket.emit('msg', { type: 'mint_module_token', moduleId: MODULE_ID });
+  setTimeout(() => { if (!done) { done = true; socket.off('msg', onToken); } }, 4000);
+});
+
+// ── View ────────────────────────────────────────────────────────────────────
+//
+// The click IS the user gesture. NOTHING may await before window.open, or
+// Safari refuses it — so the window is claimed first and navigated once the
+// token arrives. A WINDOW, not a tab: a tab covers the controls, and the point
+// of a viewer is to watch it while working them.
+document.getElementById('view').addEventListener('click', () => {
+  if (viewerWindow && !viewerWindow.closed) {
+    try { viewerWindow.focus(); } catch (_) {}
+    lastPushed = null;
+    pushToViewer(lastSeen || script.value);
+    return;
+  }
+  if (!socket || !socket.connected) { say('no relay — cannot open a viewer', true); return; }
+
+  const vw = Math.max(520, Math.round(screen.availWidth * 0.5));
+  const vh = Math.max(460, Math.round(screen.availHeight * 0.86));
+  const w = window.open('about:blank', '_blank',
+    'popup=yes,width=' + vw + ',height=' + vh + ',left=' + Math.max(0, screen.availWidth - vw) +
+    ',top=0,menubar=no,toolbar=no,location=no,resizable=yes');
+  if (!w) { say('popup blocked — allow popups to open a viewer', true); return; }
+
+  let done = false;
+  const onToken = (m) => {
+    if (!m || m.type !== 'module_token' || done) return;
+    done = true;
+    socket.off('msg', onToken);
+    if (!m.token) { say('relay would not mint a token', true); try { w.close(); } catch (_) {} return; }
+    viewerWindow = w;
+    w.location.replace('avx.html?t=' + encodeURIComponent(m.token) +
+                       '&rx=' + encodeURIComponent(RX) +
+                       '&from=' + encodeURIComponent(location.origin));
+    say('viewer opened');
+  };
+  socket.on('msg', onToken);
+  socket.emit('msg', { type: 'mint_module_token', moduleId: MODULE_ID });
+  setTimeout(() => { if (!done) { done = true; socket.off('msg', onToken); say('no token', true); } }, 4000);
+});
+</script>
+</body>
+</html>

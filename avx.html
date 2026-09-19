@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AVX — viewer</title>
+<!--
+  AVX — the viewer half of the demo.
+
+  It renders what it is told and has no controls of its own. That is not a
+  simplification: a viewer is a presentation surface, and keeping it read-only
+  is what makes it safe to open anywhere and to hand to anyone.
+
+  It may say exactly three things to the relay — "I exist", an answer when
+  asked what it is showing, and "the user pressed the way-back button". It
+  cannot push, cannot name a destination, and cannot reach anything else.
+
+  Opened by a controller with ?t=<token>. The token is single-use and expires
+  in two minutes, so this URL is worthless the moment it has been used — which
+  is why the way back is a button rather than the browser's back.
+-->
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0a0a0f; overflow: hidden; }
+  /* A square, and the largest one that fits. The drawing is radially
+     symmetric, so a square is the shape that wastes nothing. */
+  #wrap {
+    position: fixed; inset: 0; display: flex;
+    align-items: center; justify-content: center;
+  }
+  #frame {
+    border: 0; background: #0a0a0f;
+    width: min(100vw, 100vh); height: min(100vw, 100vh);
+    transition: opacity .25s ease;
+  }
+  #frame.waiting { opacity: 0; }
+  #back {
+    position: fixed; top: 10px; right: 12px; z-index: 6;
+    font: 12px/1 system-ui, sans-serif; color: #b9b9c4;
+    background: rgba(0,0,0,.55); border: 2px solid #27ae60;
+    padding: 6px 10px; border-radius: 3px; cursor: pointer;
+  }
+  #back:hover { color: #fff; }
+  #status {
+    position: fixed; left: 10px; bottom: 8px; z-index: 5;
+    font: 11px/1.4 system-ui, sans-serif; color: #7a7a86;
+    background: rgba(0,0,0,.55); padding: 3px 8px; border-radius: 2px;
+    pointer-events: none; max-width: 76vw;
+  }
+  /* The monitor stays. A viewer draws on perfectly while completely cut off —
+     it animates from its own timer — so being disconnected looks exactly like
+     working, and something has to say otherwise. */
+  #status.health { opacity: .8; }
+  #status.problem { color: #d98a8a; }
+</style>
+</head>
+<body>
+  <div id="wrap"><iframe id="frame" class="waiting" title="viewer"></iframe></div>
+  <button id="back" type="button">&larr; controls</button>
+  <div id="status">connecting&hellip;</div>
+
+<script>
+'use strict';
+// socket.io itself comes from the RELAY, which is the only party that has to
+// have it. Loaded before the shim, which expects `io` to exist.
+(function () {
+  const p = new URLSearchParams(location.search);
+  const rx = p.get('rx') ||
+    (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+       ? location.protocol + '//' + location.hostname + ':8081'
+       : 'https://rx.example.invalid');
+  document.write('<scr' + 'ipt src="' + rx + '/socket.io/socket.io.js"></scr' + 'ipt>');
+})();
+</script>
+<script src="bd_av_client.js"></script>
+<script>
+'use strict';
+
+const params = new URLSearchParams(location.search);
+// The relay the controller used. It travels in the launch URL because a viewer
+// opened from anywhere must be able to find its way home without being
+// recompiled.
+const RX = params.get('rx') ||
+           (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+              ? location.protocol + '//' + location.hostname + ':8081'
+              : 'https://rx.example.invalid');
+
+const frame  = document.getElementById('frame');
+const status = document.getElementById('status');
+const back   = document.getElementById('back');
+
+function say(t, problem) {
+  status.textContent = t;
+  status.classList.remove('health');
+  status.classList.toggle('problem', !!problem);
+}
+
+// ── The renderer ────────────────────────────────────────────────────────────
+let moduleReady = false, pending = null, liveScript = null;
+window.addEventListener('message', (e) => {
+  const d = e && e.data;
+  if (!d) return;
+  if (d.type === 'BD_READY') {
+    moduleReady = true;
+    // Hide the module's own steppers — here the controller supplies them, and
+    // a viewer with controls is a second place for the truth to live.
+    try { frame.contentWindow.postMessage({ type: 'bd_ui_config', hideControls: true }, '*'); } catch (_) {}
+    if (pending) { post(pending); pending = null; }
+    return;
+  }
+  if (d.type === 'bd_av_state' && typeof d.text === 'string') liveScript = d.text;
+});
+function post(text) {
+  if (!moduleReady) { pending = text; return; }
+  try { frame.contentWindow.postMessage({ type: 'bd_script_update', script: text }, '*'); } catch (_) {}
+}
+frame.src = 'renderer.html';
+
+// ── The relay ───────────────────────────────────────────────────────────────
+let connected = false, lastChangeAt = null, lastScript = null, resends = 0, health = null;
+
+function showHealth() {
+  if (!connected && !health) return false;
+  if (!connected) { say('NO CONTACT with the controller — press View there again', true); return true; }
+  let age = 'no changes yet';
+  if (lastChangeAt != null) {
+    const s = Math.round((Date.now() - lastChangeAt) / 1000);
+    age = s < 90 ? 'last change ' + s + 's ago' : 'last change ' + Math.round(s / 60) + 'm ago';
+  }
+  status.textContent = 'live · ' + age;
+  status.classList.remove('problem');
+  status.classList.add('health');
+  if (health) { try { status.title = JSON.stringify(Object.assign({}, health, { resendsIgnored: resends }), null, 1); } catch (_) {} }
+  return true;
+}
+setInterval(() => { if (connected) showHealth(); }, 15000);
+
+const socket = BD_AV.connect({
+  bdOrigin: RX,
+  // Where the window that opened us lives. Not the relay: in this arrangement
+  // the two are separate, and only the controller may hand out a replacement
+  // token. Passed on the launch URL so a viewer never has to guess.
+  controllerOrigin: params.get('from') || (document.referrer ? new URL(document.referrer).origin : location.origin),
+  moduleId: 'kolam',
+
+  onUpdate: function (payload) {
+    const text = (payload && payload.script) || (typeof payload === 'string' ? payload : null);
+    if (!text) return;
+    post(text);
+    frame.classList.remove('waiting');
+    // An arriving update is not necessarily a CHANGE. A resend answers "are we
+    // still in contact" and not "has anything moved", so it must not reset the
+    // clock — otherwise a tab switch looks like the controller did something.
+    if (text !== lastScript) { lastScript = text; lastChangeAt = Date.now(); }
+    else resends += 1;
+    showHealth();
+  },
+
+  // Solicited only. The controller asks; we answer. Null until we have drawn
+  // something, which is the honest answer at that point.
+  onStateRequest: function () {
+    return liveScript ? { script: liveScript, nodeId: params.get('n') || null } : null;
+  },
+
+  onHealth: function (h) { health = h; showHealth(); },
+
+  onState: function (state, info) {
+    if (state === 'live')            { connected = true; showHealth(); }
+    else if (state === 'renewing')   { connected = false; say('reconnecting…'); }
+    else if (state === 'connecting') say('connecting…');
+    else if (state === 'no-token')   say('opened without a session — open this from BDX', true);
+    else if (state === 'refused')    { connected = false;
+      say(info && info.afterGoodConnection
+            ? 'lost contact — press View in BDX for a fresh viewer'
+            : 'relay refused the session: ' + ((info && info.reason) || ''), true); }
+    else if (state === 'lost')       { connected = false; say('connection lost — reconnecting…', true); }
+  }
+});
+
+// ── The way back ────────────────────────────────────────────────────────────
+//
+// The state goes WITH the request, because on a phone this window closes a
+// moment later and there would be nobody left to ask. No destination: the
+// controller decides where that applies.
+try {
+  const roomForBoth = (window.outerWidth || innerWidth) < screen.availWidth * 0.9;
+  if (roomForBoth) { back.textContent = 'BDX'; back.title = 'Raise the controller window'; }
+} catch (_) {}
+
+back.addEventListener('click', function () {
+  const roomForBoth = back.textContent === 'BDX';
+  let told = false;
+  try {
+    if (socket && socket.connected) {
+      socket.emit('msg', { type: 'av_return', script: liveScript || undefined });
+      told = true;
+    }
+  } catch (_) {}
+  let raised = false;
+  try { if (window.opener && !window.opener.closed) { window.opener.focus(); raised = true; } } catch (_) {}
+  // Close only when this window is in the way — the phone case. Side by side,
+  // closing the thing you are looking at every time you glance at the controls
+  // would be absurd.
+  if (!roomForBoth || !raised) { try { window.close(); } catch (_) {} }
+  if (roomForBoth) say(told ? 'BDX has your state' : 'cannot reach BDX', !told);
+});
+</script>
+</body>
+</html>
