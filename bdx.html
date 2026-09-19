@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-19: GREEN (names the https-to-http mixed content case, and
-     offers the relay box whenever reaching one fails). Next = blue. */
+     2026-09-19: BLUE (offers the working http URL as a LINK when mixed
+     content blocks the relay — a box cannot help). Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -61,6 +61,13 @@
     font: 12px system-ui, sans-serif; cursor: pointer;
   }
   #state.problem { color: #d98a8a; }
+  /* The remedy for mixed content is a different URL, not a different relay —
+     so offer the URL. A box cannot help: anything typed into it is still an
+     http relay being reached from an https page. */
+  #gohttp {
+    font: 11px system-ui, sans-serif; color: #0a0a0f; background: #c9a227;
+    padding: 4px 9px; border-radius: 3px; text-decoration: none; font-weight: 600;
+  }
   main { flex: 1 1 auto; display: flex; min-height: 0; }
   #frame { flex: 1 1 auto; border: 0; min-width: 0; background: #0a0a0f; }
   aside {
@@ -89,6 +96,7 @@
     <h1>BDX</h1>
     <span class="sub">controller &mdash; the script is the truth</span>
     <span id="state">connecting&hellip;</span>
+  <a id="gohttp" href="#" style="display:none">open the http page instead</a>
     <input id="rxurl" type="text" spellcheck="false" placeholder="relay URL, e.g. http://localhost:8081"
          title="Where the relay is. Remembered, so a reload does not lose it.">
   <button id="rxset" type="button" title="Use this relay">use</button>
@@ -351,8 +359,15 @@ if (location.protocol === 'file:') {
     // being down. Name it, because the fix is completely different: use the
     // page the relay itself serves, or give the relay a certificate.
     if (location.protocol === 'https:' && RX.startsWith('http://')) {
-      say('this https page cannot reach an http relay (Safari blocks it) — ' +
-          'open ' + RX + '/bdx.html instead, or use an https relay', true);
+      // MIXED CONTENT, and the box is no use for it — anything typed in is
+      // still an http relay reached from an https page, so pressing "use"
+      // reloads into the same wall. Chrome and Firefox make an exception for
+      // localhost; Safari does not. The only remedies are a different PAGE
+      // URL or a relay with a certificate, so offer the first as a link.
+      document.body.classList.remove('norelay');
+      const a = document.getElementById('gohttp');
+      if (a) { a.href = RX + '/bdx.html'; a.style.display = 'inline-block'; }
+      say('Safari blocks this https page from reaching an http relay —', true);
     } else {
       say('no relay at ' + RX, true);
     }
