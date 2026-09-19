@@ -180,9 +180,15 @@ const socket = BD_AV.connect({
     else if (state === 'connecting') say('connecting…');
     else if (state === 'no-token')   say('opened without a session — open this from BDX', true);
     else if (state === 'refused')    { connected = false;
-      say(info && info.afterGoodConnection
-            ? 'lost contact — press View in BDX for a fresh viewer'
-            : 'relay refused the session: ' + ((info && info.reason) || ''), true); }
+      // Same mixed-content trap as the controller: an https page cannot reach
+      // an http relay in Safari, and it looks identical to the relay refusing.
+      if (location.protocol === 'https:' && RX.startsWith('http://')) {
+        say('this https page cannot reach an http relay (Safari blocks it)', true);
+      } else {
+        say(info && info.afterGoodConnection
+              ? 'lost contact — press View in BDX for a fresh viewer'
+              : 'relay refused the session: ' + ((info && info.reason) || ''), true);
+      } }
     else if (state === 'lost')       { connected = false; say('connection lost — reconnecting…', true); }
   }
 });

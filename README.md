@@ -54,6 +54,17 @@ forking anything:
 https://…/bdx.html?rx=https://your-relay.example.com
 ```
 
+### A note on https, http and Safari
+
+If you serve the pages over **https** and the relay over plain **http**, that
+is mixed content. Chrome and Firefox make an exception for `localhost` and
+allow it; **Safari does not**, and blocks it outright — which looks exactly
+like the relay being down.
+
+So while testing, either open the pages from the relay itself
+(`http://localhost:8081/bdx.html` — no https involved), or give the relay a
+certificate. A deployed relay needs one anyway, for the same reason.
+
 ### Deploying RX
 
 RX is written for a free Node host: it reads `process.env.PORT`, answers

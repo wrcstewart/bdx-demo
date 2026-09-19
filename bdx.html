@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-19: RED (steppers update the script again — the guard asks
-     whether you are TYPING, not where the caret is). Next = green. */
+     2026-09-19: GREEN (names the https-to-http mixed content case, and
+     offers the relay box whenever reaching one fails). Next = blue. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #2e1414; }
+  #view:hover { background: #17301f; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -330,7 +330,7 @@ if (location.protocol === 'file:') {
   // The hosted copy, with no relay deployed behind it. Naming a placeholder
   // host reads like a broken link; offer the box instead. The drawing and the
   // steppers still work — everything except reaching a viewer does.
-  document.body.classList.add('norelay');
+  offerBox();
   say('no relay set — type one and press use', true);
 } else {
   say('relay ' + RX.replace(/^https?:\/\//, '') + ' — connecting…');
@@ -344,7 +344,18 @@ if (location.protocol === 'file:') {
   s.onload  = () => { console.log('[bdx] client loaded, connecting'); connect(); };
   s.onerror = (err) => {
     console.warn('[bdx] client did NOT load from ' + RX, err);
-    say('no relay at ' + RX, true);
+    offerBox();
+    // An HTTPS page reaching an http:// relay is MIXED CONTENT. Chrome and
+    // Firefox make an exception for localhost and allow it; Safari does not,
+    // and blocks the script outright — which looks exactly like the relay
+    // being down. Name it, because the fix is completely different: use the
+    // page the relay itself serves, or give the relay a certificate.
+    if (location.protocol === 'https:' && RX.startsWith('http://')) {
+      say('this https page cannot reach an http relay (Safari blocks it) — ' +
+          'open ' + RX + '/bdx.html instead, or use an https relay', true);
+    } else {
+      say('no relay at ' + RX, true);
+    }
   };
   document.head.appendChild(s);
 }
@@ -359,6 +370,7 @@ function connect() {
   socket.on('connect',       () => { console.log('[bdx] connected, id ' + socket.id); say('relay: connected'); });
   socket.on('connect_error', (e) => {
     console.warn('[bdx] connect_error', e && e.message);
+    offerBox();
     say('relay refused: ' + (e && e.message), true);
   });
   socket.on('disconnect',    (r) => say('relay lost: ' + r, true));
@@ -385,12 +397,20 @@ function connect() {
 
 // The box. Remembered, then reload — simpler and more obviously correct than
 // re-running the connection machinery in place.
+//
+// Shown whenever reaching a relay FAILS, not only when none is configured.
+// Offering it only in the second case was a gap: a page that cannot reach the
+// relay it was given is exactly when you want to type a different one, and
+// there was no way to.
+function offerBox() { document.body.classList.add('norelay'); }
+
 (function () {
   const box = document.getElementById('rxurl');
   const go  = document.getElementById('rxset');
   if (!box || !go) return;
-  box.value = STORED_RX || (LOCAL ? location.protocol + '//' + location.hostname + ':8081'
-                                  : 'http://localhost:8081');
+  box.value = STORED_RX || RX ||
+              (LOCAL ? location.protocol + '//' + location.hostname + ':8081'
+                     : 'http://localhost:8081');
   const use = () => {
     const v = box.value.trim().replace(/\/$/, '');
     if (!/^https?:\/\//.test(v)) { say('a relay URL starts http:// or https://', true); return; }
