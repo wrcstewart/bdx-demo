@@ -1,2 +1,5 @@
 node_modules/
-package-lock.json
+
+# package-lock.json is deliberately NOT ignored: this is a deployable
+# service, and a host running `npm install` should get the versions that
+# were tested rather than whatever resolves on the day.
