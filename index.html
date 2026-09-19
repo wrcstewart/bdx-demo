@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BDX · AVX · RX</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #0a0a0f; color: #c9c9d4;
+         font: 15px/1.6 system-ui, sans-serif;
+         display: flex; align-items: center; justify-content: center;
+         min-height: 100dvh; padding: 24px; box-sizing: border-box; }
+  main { max-width: 34rem; }
+  h1 { font-size: 20px; margin: 0 0 4px; color: #e8e8f0; letter-spacing: .01em; }
+  p  { color: #8a8a96; }
+  a.go { display: inline-block; margin-top: 14px; padding: 10px 18px;
+         background: #000; color: #fff; border: 2px solid #27ae60;
+         border-radius: 3px; text-decoration: none; font-weight: 600; }
+  a.go:hover { background: #17301f; }
+  code { color: #c9a227; font-family: 'Courier New', monospace; }
+  .note { font-size: 13px; color: #6a6a78; margin-top: 22px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>BDX · AVX · RX</h1>
+  <p>A controller, a viewer and a relay. Together they drive a live drawing from
+     a script, and between them they need no database, no corpus, no graph and
+     no accounts.</p>
+  <a class="go" href="bdx.html">Open the controller</a>
+  <p class="note">
+    Edit the script or move a stepper, then press <strong>View</strong> to open
+    a viewer and drive it.<br>
+    Point the pages at your own relay with
+    <code>?rx=https://your-relay</code> — no forking required.<br>
+    Source and the reasoning: <a href="https://github.com/wrcstewart/bdx-demo"
+    style="color:#4080ff">github.com/wrcstewart/bdx-demo</a>
+  </p>
+</main>
+</body>
+</html>

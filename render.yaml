@@ -1,0 +1,21 @@
+# Render Blueprint — so deploying RX is a button rather than a form.
+#
+# Render reads this when you point it at the repo: it knows the runtime, the
+# build, the start command and the plan, and you confirm rather than fill in.
+#
+# The free plan sleeps after about 15 minutes idle and takes ~50s to wake. For
+# a demo that is a fair trade; the viewer says "NO CONTACT" honestly while it
+# wakes rather than showing a blank page. If it ever needs to be always-on,
+# this is the file to change.
+services:
+  - type: web
+    name: bdx-demo-rx
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      # RX reads PORT from the environment; Render sets it. Do not hardcode.
+      - key: NODE_VERSION
+        value: "20"
