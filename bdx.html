@@ -92,10 +92,9 @@
 // page is itself served from localhost, so a developer needs no query string.
 const DEFAULT_RX = 'https://rx.example.invalid';
 const params  = new URLSearchParams(location.search);
+const LOCAL   = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const RX = params.get('rx') ||
-           (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
-              ? location.protocol + '//' + location.hostname + ':8081'
-              : DEFAULT_RX);
+           (LOCAL ? location.protocol + '//' + location.hostname + ':8081' : DEFAULT_RX);
 
 const MODULE_ID = 'kolam';          // which KIND of viewer a token is for
 const frame  = document.getElementById('frame');
@@ -106,6 +105,28 @@ const stateEl = document.getElementById('state');
 function say(t, problem) {
   stateEl.textContent = t;
   stateEl.classList.toggle('problem', !!problem);
+  stateEl.title = 'relay: ' + RX;
+}
+
+// ── Say what went wrong, wherever it went wrong ─────────────────────────────
+//
+// A page whose script dies halfway looks exactly like a page that is waiting,
+// and both look exactly like a page that is working — the drawing comes from
+// an iframe and carries on regardless. So: surface anything thrown, rather
+// than leaving the header saying "connecting…" for ever.
+window.addEventListener('error', (e) => {
+  say('script error: ' + ((e && e.message) || 'unknown'), true);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  say('failed: ' + ((e && e.reason && (e.reason.message || e.reason)) || 'unknown'), true);
+});
+
+// Opened by double-clicking the file rather than through a server. The drawing
+// will work, because the renderer is a relative path — and NOTHING else will,
+// because a file:// page has no origin a socket can be opened from. Worth
+// saying plainly: it is the one failure that looks like success.
+if (location.protocol === 'file:') {
+  say('opened as a file — serve it over http to reach a relay', true);
 }
 
 const DEFAULT_SCRIPT = [
@@ -236,11 +257,14 @@ auto.addEventListener('change', () => {
 // ── The relay ───────────────────────────────────────────────────────────────
 let socket = null, viewerWindow = null;
 
-const s = document.createElement('script');
-s.src = RX + '/socket.io/socket.io.js';
-s.onload = connect;
-s.onerror = () => say('no relay at ' + RX, true);
-document.head.appendChild(s);
+if (location.protocol !== 'file:') {
+  say('relay ' + RX.replace(/^https?:\/\//, '') + ' — connecting…');
+  const s = document.createElement('script');
+  s.src = RX + '/socket.io/socket.io.js';
+  s.onload = connect;
+  s.onerror = () => say('no relay at ' + RX, true);
+  document.head.appendChild(s);
+}
 
 function connect() {
   socket = io(RX);

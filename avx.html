@@ -93,7 +93,13 @@ function say(t, problem) {
   status.textContent = t;
   status.classList.remove('health');
   status.classList.toggle('problem', !!problem);
+  status.title = 'relay: ' + RX;
 }
+
+// Same reasoning as BDX: a viewer draws on perfectly while its script is dead,
+// because the drawing is an iframe. Anything thrown has to be said out loud.
+window.addEventListener('error', (e) => say('script error: ' + ((e && e.message) || 'unknown'), true));
+if (location.protocol === 'file:') say('opened as a file — serve it over http', true);
 
 // ── The renderer ────────────────────────────────────────────────────────────
 let moduleReady = false, pending = null, liveScript = null;
