@@ -34,10 +34,14 @@
     transition: opacity .25s ease;
   }
   #frame.waiting { opacity: 0; }
+  /* CANARY host for AVX, rotating red -> green -> blue on every commit to a
+     cached file. Separate from BDX's and deliberately out of step with it:
+     the two are cached independently, so one says nothing about the other.
+     2026-09-19: BLUE (both pages now say what went wrong). Next = red. */
   #back {
     position: fixed; top: 10px; right: 12px; z-index: 6;
     font: 12px/1 system-ui, sans-serif; color: #b9b9c4;
-    background: rgba(0,0,0,.55); border: 2px solid #27ae60;
+    background: rgba(0,0,0,.55); border: 2px solid #2d7ff9;
     padding: 6px 10px; border-radius: 3px; cursor: pointer;
   }
   #back:hover { color: #fff; }

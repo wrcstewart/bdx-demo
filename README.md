@@ -130,6 +130,20 @@ viewer that is computing the same step itself — **the script records, the
 viewer computes** — which is what keeps a viewer smooth when the controller is
 a backgrounded tab on a phone.
 
+## Am I looking at the current version?
+
+Both pages carry a **canary**: a coloured border that changes on every commit
+to a file a browser caches — BDX's **View** button, AVX's **back** button,
+rotating red → green → blue.
+
+These pages are served from a CDN that caches happily, so "did my change
+arrive, or am I looking at yesterday's file?" is a question you will have. A
+repeated colour means a repeated version. The two rotate independently,
+because they are cached independently: BDX's colour says nothing about which
+AVX you have.
+
+Both are **blue** as of 2026-09-19.
+
 ## Licence
 
 CC0. Take it.
