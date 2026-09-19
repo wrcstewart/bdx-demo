@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-19: BLUE (the relay can be typed in and is remembered).
-     Next = red. */
+     2026-09-19: RED (steppers update the script again — the guard asks
+     whether you are TYPING, not where the caret is). Next = green. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #16243a; }
+  #view:hover { background: #2e1414; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -255,12 +255,40 @@ function onRender(text, fromDrift) {
   writePanel(text);
   pushToViewer(text);
 }
+// Milliseconds of quiet after a real keystroke before the module may write the
+// panel again. Longer than the 600ms edit debounce, so an edit reaches the
+// renderer before anything writes over it.
+const TYPING_QUIET_MS = 1200;
+let lastTypedAt = 0;
+
 function writePanel(text) {
   lastWrite = Date.now();
-  // Never under a live cursor. Recording is data and must not stop; redrawing
-  // the panel is presentation and can wait until you are out of it.
-  if (document.activeElement === script) return;
-  if (script.value !== text) script.value = text;
+  // Do not fight the keyboard — but the question is "is someone TYPING", not
+  // "is the caret in this box".
+  //
+  // 2026-09-19: this was `document.activeElement === script`, and it stopped
+  // the panel updating from the steppers for good. Two things combine. The
+  // caret STAYS in the panel after you stop typing; and the renderer's stepper
+  // buttons call preventDefault on pointerdown, so clicking one does not move
+  // focus to the iframe either. Once you had edited the script, the guard
+  // never lifted again.
+  //
+  // This is the same fault ButterflyDreaming had on 09-18 and the same fix,
+  // arrived at a second time because the lesson was carried over incompletely:
+  // BD's panel is a contentEditable div, where rewriting destroys the caret,
+  // so BD had to separate recording from redrawing. THIS panel is a textarea,
+  // where the caret can simply be put back — so the simpler answer is right
+  // here and would have been wrong there.
+  if (Date.now() - lastTypedAt < TYPING_QUIET_MS) return;
+  if (script.value === text) return;
+  const focused = document.activeElement === script;
+  let a = null, b = null;
+  if (focused) { try { a = script.selectionStart; b = script.selectionEnd; } catch (_) {} }
+  script.value = text;
+  if (focused && a != null) {
+    const cap = script.value.length;
+    try { script.setSelectionRange(Math.min(a, cap), Math.min(b, cap)); } catch (_) {}
+  }
 }
 
 // A hand edit drives the renderer AND the viewer. Debounced, and held back
@@ -270,6 +298,7 @@ function writePanel(text) {
 let editTimer = null;
 script.addEventListener('input', (e) => {
   if (!e.isTrusted) return;                 // our own writes dispatch input too
+  lastTypedAt = Date.now();
   clearTimeout(editTimer);
   editTimer = setTimeout(() => {
     const text = script.value;
