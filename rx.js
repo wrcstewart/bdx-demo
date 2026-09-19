@@ -24,6 +24,8 @@
 // server runs, not a copy of it. See README.md.
 
 const http      = require('http');
+const fs        = require('fs');
+const path      = require('path');
 const { Server } = require('socket.io');
 const bdRelay   = require('./bd_relay');
 
@@ -34,7 +36,7 @@ const QUIET  = process.env.RX_QUIET === '1';
 const server = http.createServer((req, res) => {
   // A health route, because free hosts ask for one and because "is it up" is
   // the first question anyone debugging a relay has.
-  if (req.url === '/health' || req.url === '/') {
+  if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify({
       ok: true,
@@ -45,8 +47,41 @@ const server = http.createServer((req, res) => {
     }));
     return;
   }
+  // ── It also serves the pages, if they are sitting next to it ──────────
+  //
+  // A relay does not need to. But having to run a second static server, on a
+  // second port, is a step that can go wrong — and when it does the symptom is
+  // "no relay", which sounds like the relay's fault and is not. Serving them
+  // here means ONE command, ONE origin, and nothing to line up.
+  //
+  // Harmless when deployed: a host running this will also serve the pages, and
+  // a copy on GitHub Pages pointed at it with ?rx= works exactly the same.
+  const TYPES = { '.html': 'text/html; charset=utf-8',
+                  '.js':   'application/javascript; charset=utf-8',
+                  '.css':  'text/css; charset=utf-8',
+                  '.json': 'application/json; charset=utf-8' };
+  // Only these. Not a general file server sitting in front of a node_modules
+  // directory and whatever else the folder happens to hold.
+  const SERVABLE = new Set(['bdx.html', 'avx.html', 'renderer.html',
+                            'bd_av_client.js', 'index.html']);
+  const name = decodeURIComponent((req.url || '').split('?')[0].replace(/^\//, ''));
+  if (SERVABLE.has(name)) {
+    const file = path.join(__dirname, name);
+    fs.readFile(file, (err, body) => {
+      if (err) { res.writeHead(404); res.end('not found'); return; }
+      res.writeHead(200, {
+        'Content-Type': TYPES[path.extname(name)] || 'application/octet-stream',
+        // No caching while developing. The canary on each page is for the
+        // CDN-hosted copies; here it should simply always be the current file.
+        'Cache-Control': 'no-store'
+      });
+      res.end(body);
+    });
+    return;
+  }
+
   res.writeHead(404, { 'Content-Type': 'text/plain' });
-  res.end('rx: nothing here but the socket and /health\n');
+  res.end('rx: nothing here but the socket, /health, and the demo pages\n');
 });
 
 const io = new Server(server, {
@@ -98,6 +133,8 @@ io.on('connection', (socket) => {
 });
 
 server.listen(PORT, () => {
-  console.log('[rx] relay listening on ' + PORT + '  (health: /health)');
-  console.log('[rx] point a controller and a viewer at this origin with ?rx=');
+  console.log('[rx] listening on ' + PORT);
+  console.log('[rx]   controller  http://localhost:' + PORT + '/bdx.html');
+  console.log('[rx]   health      http://localhost:' + PORT + '/health');
+  console.log('[rx] pages hosted elsewhere reach this relay with ?rx=');
 });

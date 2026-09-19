@@ -37,13 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-19: BLUE (both pages now say what went wrong). Next = red. */
+     2026-09-19: RED (the hosted copy says what to do about having no relay,
+     instead of naming a placeholder host). Next = green. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #16243a; }
+  #view:hover { background: #2e1414; }
   #state { font-size: 11px; color: #7a7a86; }
   #state.problem { color: #d98a8a; }
   main { flex: 1 1 auto; display: flex; min-height: 0; }
@@ -96,7 +97,10 @@
 // ?rx=<origin> overrides, which is what lets this PUBLISHED page be pointed at
 // your own relay without forking anything. Default below; localhost when this
 // page is itself served from localhost, so a developer needs no query string.
+// No relay is deployed yet, so the published copy has nowhere to point. When
+// one exists this becomes its origin and the hosted pages work on click.
 const DEFAULT_RX = 'https://rx.example.invalid';
+const RX_UNSET   = DEFAULT_RX.indexOf('.invalid') !== -1;
 const params  = new URLSearchParams(location.search);
 const LOCAL   = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
 const RX = params.get('rx') ||
@@ -263,7 +267,14 @@ auto.addEventListener('change', () => {
 // ── The relay ───────────────────────────────────────────────────────────────
 let socket = null, viewerWindow = null;
 
-if (location.protocol !== 'file:') {
+if (location.protocol === 'file:') {
+  // already said so above
+} else if (RX_UNSET && !params.get('rx') && !LOCAL) {
+  // The hosted copy, with no relay deployed behind it. Naming a placeholder
+  // host reads like a broken link; say what to do instead. The drawing and
+  // the steppers still work — everything here except reaching a viewer does.
+  say('no relay set — run one (npm start) or add ?rx=<url>', true);
+} else {
   say('relay ' + RX.replace(/^https?:\/\//, '') + ' — connecting…');
   const s = document.createElement('script');
   s.src = RX + '/socket.io/socket.io.js';
