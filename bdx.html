@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-19: RED (the hosted copy says what to do about having no relay,
-     instead of naming a placeholder host). Next = green. */
+     2026-09-19: GREEN (the page narrates its own connection to the console).
+     Next = blue. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #2e1414; }
+  #view:hover { background: #17301f; }
   #state { font-size: 11px; color: #7a7a86; }
   #state.problem { color: #d98a8a; }
   main { flex: 1 1 auto; display: flex; min-height: 0; }
@@ -276,17 +276,33 @@ if (location.protocol === 'file:') {
   say('no relay set — run one (npm start) or add ?rx=<url>', true);
 } else {
   say('relay ' + RX.replace(/^https?:\/\//, '') + ' — connecting…');
+  // Logged, because the failure this keeps producing is SILENT: the drawing
+  // works, the header looks busy, and nothing says whether the client was
+  // even asked for. Four lines in the console beat an hour of inference.
+  console.log('[bdx] page origin ' + location.origin + ', relay ' + RX);
+  console.log('[bdx] requesting ' + RX + '/socket.io/socket.io.js');
   const s = document.createElement('script');
   s.src = RX + '/socket.io/socket.io.js';
-  s.onload = connect;
-  s.onerror = () => say('no relay at ' + RX, true);
+  s.onload  = () => { console.log('[bdx] client loaded, connecting'); connect(); };
+  s.onerror = (err) => {
+    console.warn('[bdx] client did NOT load from ' + RX, err);
+    say('no relay at ' + RX, true);
+  };
   document.head.appendChild(s);
 }
 
 function connect() {
+  if (typeof io !== 'function') {
+    console.warn('[bdx] socket.io loaded but io() is not defined');
+    say('relay client loaded but unusable', true);
+    return;
+  }
   socket = io(RX);
-  socket.on('connect',       () => say('relay: connected'));
-  socket.on('connect_error', (e) => say('relay refused: ' + (e && e.message), true));
+  socket.on('connect',       () => { console.log('[bdx] connected, id ' + socket.id); say('relay: connected'); });
+  socket.on('connect_error', (e) => {
+    console.warn('[bdx] connect_error', e && e.message);
+    say('relay refused: ' + (e && e.message), true);
+  });
   socket.on('disconnect',    (r) => say('relay lost: ' + r, true));
   socket.on('msg', (m) => {
     if (!m) return;
@@ -352,7 +368,11 @@ document.getElementById('view').addEventListener('click', () => {
     pushToViewer(lastSeen || script.value);
     return;
   }
-  if (!socket || !socket.connected) { say('no relay — cannot open a viewer', true); return; }
+  if (!socket || !socket.connected) {
+    say(!socket ? 'no relay client — see the console' : 'relay not connected yet', true);
+    console.warn('[bdx] View pressed with socket=' + (socket ? 'present, not connected' : 'never created'));
+    return;
+  }
 
   const vw = Math.max(520, Math.round(screen.availWidth * 0.5));
   const vh = Math.max(460, Math.round(screen.availHeight * 0.86));
