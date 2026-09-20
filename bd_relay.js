@@ -43,7 +43,13 @@
 
 const crypto = require('crypto');
 
-const MODULE_TOKEN_TTL_MS = 2 * 60 * 1000;   // generous: covers a slow page load
+// Long enough to carry a launch URL to ANOTHER DEVICE — copy it, unlock a
+// phone, paste, open — and no longer. The token is the address and the proof
+// fused into one string, so whoever holds it is a viewer of that session; and
+// unlike a password it travels through clipboards and messages, which keep
+// things for years. Two minutes covered a slow page load, which is all View
+// ever needed. Three covers a hand-off.
+const MODULE_TOKEN_TTL_MS = 3 * 60 * 1000;
 
 // What a VIEWER is allowed to say. Deliberately short, and adding to it is a
 // decision about what a viewer may DO rather than something to inherit.

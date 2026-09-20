@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-20: RED (a stale saved relay now heals itself).
-     Next = green. */
+     2026-09-20: GREEN (copy view URL — a viewer on another device).
+     Next = blue. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #2e1414; }
+  #view:hover { background: #17301f; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -69,6 +69,29 @@
     border: 1px solid #c9a227; border-radius: 3px; padding: 5px 10px;
     font: 12px system-ui, sans-serif; cursor: pointer;
   }
+  #send {
+    background: #000; color: #fff; border: 1px solid #4a4a5a;
+    border-radius: 3px; padding: 6px 12px; font: 600 12px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  #send:hover { background: #16161f; }
+  #send:disabled { opacity: .45; cursor: default; }
+  #sendbox {
+    display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
+    padding: 8px 12px; border-bottom: 1px solid #23232e; background: #0e0e15;
+  }
+  #sendurl {
+    flex: 1 1 auto; min-width: 0; padding: 5px 7px;
+    background: #101018; color: #cfcfda; border: 1px solid #2a2a3a;
+    border-radius: 3px; font: 12px ui-monospace, monospace;
+  }
+  #sendcopy {
+    background: #1a1a24; color: #c9a227; border: 1px solid #c9a227;
+    border-radius: 3px; padding: 5px 10px; font: 12px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  #sendnote { color: #7a7a86; font-size: 11px; white-space: nowrap; }
+  #sendnote.expired { color: #d98a8a; }
   #state.problem { color: #d98a8a; }
   /* The remedy for mixed content is a different URL, not a different relay —
      so offer the URL. A box cannot help: anything typed into it is still an
@@ -118,7 +141,14 @@
   <button id="rxdefault" type="button"
           title="Forget the saved relay and go back to following the default">default</button>
   <button id="view" type="button" title="Open a viewer and drive it from here">View</button>
+  <button id="send" type="button"
+          title="Mint a viewer link and copy it, to open on another device">copy view URL</button>
   </header>
+  <section id="sendbox" hidden>
+    <input id="sendurl" type="text" readonly spellcheck="false">
+    <button id="sendcopy" type="button">copy</button>
+    <span id="sendnote"></span>
+  </section>
   <main>
     <!-- No src at load. The renderer announces BD_READY as soon as it loads, and
          if the iframe starts before the listener below is attached that
@@ -191,6 +221,15 @@ const frame  = document.getElementById('frame');
 const script = document.getElementById('script');
 const auto   = document.getElementById('auto');
 const stateEl = document.getElementById('state');
+// Bound HERE, with the other DOM lookups, rather than beside the code that
+// uses them. The message handler far below refers to the send panel, and a
+// const declared after it is in the temporal dead zone until the script
+// finishes — safe only because a socket callback cannot run before then. That
+// is luck, not design, and this project has already been bitten by it once.
+const sendbox  = document.getElementById('sendbox');
+const sendurl  = document.getElementById('sendurl');
+const sendnote = document.getElementById('sendnote');
+let ttlTimer = null;
 
 function say(t, problem) {
   stateEl.textContent = t;
@@ -542,6 +581,10 @@ function connect() {
       const text = lastSeen || script.value;
       lastPushed = null;                    // a resync is never a duplicate
       pushToViewer(text);
+      // A viewer has arrived, so a link on screen has either been spent or is
+      // now redundant. Closing it IS the confirmation that the hand-off
+      // worked, which is worth having when the other device is across the room.
+      if (!sendbox.hidden) closeSend('the other device is connected');
       return;
     }
     // The viewer's way-back button. It carries what the viewer was showing —
@@ -619,6 +662,121 @@ window.addEventListener('message', (e) => {
   socket.on('msg', onToken);
   socket.emit('msg', { type: 'mint_module_token', moduleId: MODULE_ID });
   setTimeout(() => { if (!done) { done = true; socket.off('msg', onToken); } }, 4000);
+});
+
+// ── Copy view URL: the same viewer, on another device ───────────────────────
+//
+// The ONLY thing RX exists for. A viewer this page opened needs no relay at
+// all — a window handle and postMessage are faster. A viewer on your phone has
+// no handle to hold, so something in the middle must.
+//
+// It mints on the press and never in advance: a token is single-use and lives
+// three minutes, so a URL sitting in a box from earlier is a dead link that
+// looks usable.
+
+function isLoopback(u) {
+  try {
+    const h = new URL(u).hostname;
+    return h === 'localhost' || h === '127.0.0.1' || h === '[::1]' || h === '::1';
+  } catch (_) { return false; }
+}
+
+function closeSend(why) {
+  sendbox.hidden = true;
+  if (ttlTimer) { clearInterval(ttlTimer); ttlTimer = null; }
+  if (why) say(why);
+}
+
+function countdown(ms) {
+  const dies = Date.now() + ms;
+  if (ttlTimer) clearInterval(ttlTimer);
+  const tick = () => {
+    const left = Math.max(0, dies - Date.now());
+    const mm = Math.floor(left / 60000), ss = Math.floor(left % 60000 / 1000);
+    if (left <= 0) {
+      sendnote.textContent = 'expired — press copy view URL again';
+      sendnote.classList.add('expired');
+      clearInterval(ttlTimer); ttlTimer = null;
+      return;
+    }
+    sendnote.classList.remove('expired');
+    sendnote.textContent = 'expires in ' + mm + ':' + String(ss).padStart(2, '0') +
+                           ' · one device per link';
+  };
+  tick();
+  ttlTimer = setInterval(tick, 1000);
+}
+
+// Safari refuses a clipboard write that happens after an await, for the same
+// reason it refuses a window.open: the gesture is over by then. The documented
+// way round is to hand the clipboard the PROMISE during the gesture and let it
+// resolve when the token arrives. Where that is unsupported we fall back to
+// writeText, and where THAT is refused the URL is on screen with its own copy
+// button — a fresh gesture, which always works.
+function copyWhenReady(promise) {
+  if (window.ClipboardItem && navigator.clipboard && navigator.clipboard.write) {
+    try {
+      return navigator.clipboard.write([new ClipboardItem({
+        'text/plain': promise.then((u) => new Blob([u], { type: 'text/plain' }))
+      })]).then(() => true, () => false);
+    } catch (_) { /* fall through */ }
+  }
+  return promise.then((u) => (navigator.clipboard && navigator.clipboard.writeText)
+    ? navigator.clipboard.writeText(u).then(() => true, () => false)
+    : false, () => false);
+}
+
+document.getElementById('send').addEventListener('click', () => {
+  if (!socket || !socket.connected) {
+    say(!socket ? 'no relay client — see the console' : 'relay not connected yet', true);
+    return;
+  }
+  // The trap worth refusing rather than explaining afterwards: on localhost
+  // the link means THE OTHER DEVICE ITSELF, which is not this machine. It
+  // would open, fail to find anything, and look like the relay's fault.
+  if (isLoopback(location.href)) {
+    say('these pages are on localhost — another device cannot reach them', true);
+    return;
+  }
+  if (isLoopback(RX)) {
+    say('the relay is on localhost — another device cannot reach it', true);
+    return;
+  }
+
+  let hand;
+  const url = new Promise((res) => { hand = res; });
+  const copying = copyWhenReady(url);        // claimed inside the gesture
+
+  let done = false;
+  const onToken = (m) => {
+    if (!m || m.type !== 'module_token' || done) return;
+    done = true;
+    socket.off('msg', onToken);
+    if (!m.token) { say('relay would not mint a token', true); return; }
+    const href = new URL('avx.html?t=' + encodeURIComponent(m.token) +
+                         '&rx=' + encodeURIComponent(RX) +
+                         '&from=' + encodeURIComponent(location.origin),
+                         location.href).href;
+    hand(href);
+    sendurl.value = href;
+    sendbox.hidden = false;
+    sendurl.focus(); sendurl.select();
+    countdown(m.ttl_ms || 180000);           // the relay's own figure, not ours
+    copying.then((ok) => say(ok ? 'link copied — paste it on the other device'
+                                : 'link ready — press copy'));
+  };
+  socket.on('msg', onToken);
+  socket.emit('msg', { type: 'mint_module_token', moduleId: MODULE_ID });
+  setTimeout(() => { if (!done) { done = true; socket.off('msg', onToken); say('no token', true); } }, 4000);
+});
+
+document.getElementById('sendcopy').addEventListener('click', () => {
+  sendurl.focus(); sendurl.select();
+  const v = sendurl.value;
+  const done = () => say('link copied — paste it on the other device');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(v).then(done, () => say('select it and copy by hand', true));
+  } else { try { document.execCommand('copy'); done(); } catch (_) {} }
 });
 
 // ── View ────────────────────────────────────────────────────────────────────
