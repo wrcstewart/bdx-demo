@@ -187,6 +187,39 @@ function handleMessage(relay, io, sessions, socket, msg, log) {
     return true;
   }
 
+  // Host → viewer: a SPARE token, to be used on some future reconnection.
+  //
+  // The problem it solves: a token is single-use, spent at first connect.
+  // connectionStateRecovery hides a drop under a minute, but past that a
+  // reconnect is a fresh connection whose token is already gone, and every
+  // retry is refused for ever. A viewer opened with window.open recovers by
+  // asking its opener for another. A viewer opened from a PASTED LINK has no
+  // opener, and on a phone — where switching apps suspends the page and can
+  // discard it altogether — that is the common case, not the rare one.
+  //
+  // So the host hands one over while the line is still up, and the viewer
+  // keeps it for the day it needs it. Tokens stay single-use, which is the
+  // property worth keeping; what goes is the assumption that a viewer can
+  // always reach back to whoever launched it.
+  //
+  // The host minted this itself through mint_module_token, so the relay is
+  // only carrying it. Addressing is implicit, exactly as av_push: the sender
+  // names no recipient and so cannot reach another user's viewer.
+  if (type === 'av_spare_token') {
+    if (!socket.data.userId) return true;
+    if (typeof msg.token !== 'string' || !msg.token) return true;
+    const want = typeof msg.moduleId === 'string' ? msg.moduleId : null;
+    let delivered = 0;
+    for (const [, s] of io.sockets.sockets) {
+      if (!s.data || s.data.role !== 'module' || s.data.moduleFor !== socket.data.userId) continue;
+      if (want && s.data.moduleType && s.data.moduleType !== want) continue;
+      s.emit('msg', { type: 'module_spare_token', token: msg.token });
+      delivered++;
+    }
+    if (log && delivered) log(`av_spare_token -> ${delivered} viewer(s)`);
+    return true;
+  }
+
   // Host → viewer: "what are you showing?" The one thing a viewer knows that a
   // host cannot — on a phone the host is a background tab, throttled or
   // suspended, while the viewer goes on animating.

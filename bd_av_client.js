@@ -47,10 +47,52 @@
 
   const DEFAULT_BD_ORIGIN = 'https://graph.virtualfictions.uk';
 
+  // ── The spare token (2026-09-20) ──────────────────────────────────────────
+  //
+  // Kept in sessionStorage rather than a variable because the case it exists
+  // for DESTROYS variables: iOS suspends a page when you switch apps and may
+  // discard it outright, so returning can mean a fresh document with the same
+  // URL — and that URL's ?t= was spent at first connect. A spare held only in
+  // memory dies exactly when it is needed.
+  //
+  // No worse for secrecy than the status quo: the token is already in the URL,
+  // and therefore already in history. sessionStorage is per tab and goes when
+  // the tab does.
+  var SPARE_KEY = 'bd_av_spare';
+  var BOOTS_KEY = 'bd_av_boots';
+
+  function keepSpare(t) {
+    try { sessionStorage.setItem(SPARE_KEY, t); } catch (_) {}
+  }
+  // Reading one SPENDS it. Tokens are single-use, so a spare that failed must
+  // not be tried again — that is how a refusal becomes an infinite retry.
+  function spendSpare() {
+    try {
+      var t = sessionStorage.getItem(SPARE_KEY);
+      sessionStorage.removeItem(SPARE_KEY);
+      return t || null;
+    } catch (_) { return null; }
+  }
+
+  // How many times this tab has loaded the viewer. >1 means the page was
+  // RELOADED rather than resumed, which is the difference between "recovery
+  // failed" and "there was nothing left to recover" — and they need opposite
+  // fixes, so it is worth being able to tell them apart from the phone.
+  function countBoot() {
+    try {
+      var n = (parseInt(sessionStorage.getItem(BOOTS_KEY) || '0', 10) || 0) + 1;
+      sessionStorage.setItem(BOOTS_KEY, String(n));
+      return n;
+    } catch (_) { return 1; }
+  }
+
   function readToken() {
     try {
-      return new URLSearchParams(location.search).get('t');
-    } catch (_) { return null; }
+      var fromUrl = new URLSearchParams(location.search).get('t');
+      if (fromUrl) return fromUrl;
+    } catch (_) {}
+    // Opened with no ?t= at all — but a previous life may have left a spare.
+    return spendSpare();
   }
 
   /*
@@ -137,7 +179,14 @@
       lastUpdateAt: null,
       drops:        0,
       lastError:    null,
-      everConnected: false
+      everConnected: false,
+      // boots > 1 says the page was RELOADED, not resumed — so there was
+      // nothing for connectionStateRecovery to recover and its 60-second
+      // window is beside the point. recovered says the opposite: the session
+      // WAS restored. Between them they name which failure this is.
+      boots:        countBoot(),
+      recovered:    false,
+      hasSpare:     false
     };
 
     function healthSnapshot() {
@@ -184,6 +233,20 @@
     let   renewCount     = 0;
     let   lastRenewAt    = 0;
 
+    // The spare is tried BEFORE asking an opener, and without requiring that
+    // this document ever connected: after a reload there is no opener and no
+    // history, only a spent ?t= in the URL and whatever the last life saved.
+    function trySpare(why) {
+      var t = spendSpare();
+      if (!t) return false;
+      onState('renewing', { why: why, spare: true });
+      try {
+        socket.auth = { token: t };
+        socket.connect();
+      } catch (_) { return false; }
+      return true;
+    }
+
     function tryRenewToken(why) {
       if (renewing) return false;
       if (renewCount >= RENEW_MAX) return false;
@@ -227,7 +290,9 @@
       if (onHealth) { try { onHealth(snap); } catch (_) {} }
       // A minute disconnected, having once been connected, is a spent token
       // until proven otherwise. Try to replace it.
-      if (!snap.connected && snap.everConnected) tryRenewToken('minute check');
+      if (!snap.connected && snap.everConnected) {
+        if (!trySpare('minute check')) tryRenewToken('minute check');
+      }
     }, 60 * 1000);
     try {
       root.addEventListener('pagehide', function () { clearInterval(healthTimer); });
@@ -237,7 +302,8 @@
       health.connectedAt   = Date.now();
       health.everConnected = true;
       health.lastError     = null;
-      onState('live', { id: socket.id });
+      health.recovered = !!socket.recovered;
+      onState('live', { id: socket.id, recovered: health.recovered, boots: health.boots });
       // Ask for the current state immediately. A viewer knows exactly when it
       // is ready and nobody else does, so asking beats being guessed at — BD
       // used to push on a timer after opening the window, which left the
@@ -256,6 +322,7 @@
       // first attempt, which means the link was already stale when opened.
       // A refusal after a good connection IS the spent token. Ask BD for
       // another rather than retrying one that can never work again.
+      if (trySpare('token refused')) return;
       if (health.everConnected && tryRenewToken('token refused')) return;
       onState('refused', {
         reason: health.lastError,
@@ -302,6 +369,16 @@
       if (!m) return;
 
       if (m.type === 'av_update') { health.lastUpdateAt = Date.now(); onUpdate(m.payload); return; }
+
+      // A spare token, handed over while the line is still up, against the day
+      // it is not. Stored, never used now.
+      if (m.type === 'module_spare_token') {
+        if (typeof m.token === 'string' && m.token) {
+          keepSpare(m.token);
+          health.hasSpare = true;
+        }
+        return;
+      }
 
       // BD asking "what are you showing?" — 2026-09-16.
       //
