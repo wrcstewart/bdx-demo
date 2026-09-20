@@ -187,7 +187,36 @@ a backgrounded tab on a phone.
 live at `https://rx.virtualfictions.uk`.
 
 Edit the script or move a stepper, then press **View** to open a viewer and
-drive it. To use your own relay instead, type it into the box in the header,
+drive it — or **copy view URL** to send one to another device.
+
+### Sending a viewer to another device
+
+**This is the only thing the relay is for.** A viewer opened by **View** needs
+no relay at all: `window.open` returns a handle and `postMessage` reaches it in
+about a millisecond. A viewer on your phone has no handle to hold, so something
+in the middle must.
+
+Press **copy view URL**. A token is minted, the link is copied, and it appears
+in a box with a countdown. Paste it on the other device — between Apple devices
+the clipboard carries it across on its own.
+
+- **The link is minted on the press, never in advance.** It is single-use and
+  lives **three minutes**, so one left sitting on screen is a dead link that
+  looks usable. The countdown reads the relay's own figure, not a number copied
+  into the page.
+- **One device per link.** A second device needs a second press.
+- **As many viewers as you like**, though. A push goes to every viewer your
+  session minted a token for, so one controller can drive several screens.
+- **The panel closes itself when the other device connects**, which is how you
+  know the hand-off worked.
+- **It refuses on localhost**, for both the pages and the relay. A `localhost`
+  link means *the other device itself* — it would open, find nothing, and look
+  like the relay's fault. A LAN address is fine.
+
+Why three minutes and not an hour: the token is the address and the proof fused
+into one string, so whoever holds the link is a viewer of that session. Unlike a
+password it travels through clipboards and messages, which keep things for
+years. A short life means a leaked link is already dead. To use your own relay instead, type it into the box in the header,
 or add `?rx=https://your-relay` — **remembered for that browser afterwards**,
 see above. The header names whichever relay it reached and the transport it got
 there on, and grows a **default** button when that is not the built-in one.
@@ -206,9 +235,8 @@ nothing about either.
 
 What has **not**: anything across two devices. Every test so far is two
 windows on one machine, which is the case that needs no relay at all. The
-relay is now deployed and reachable from anywhere, so that test has become
-possible — it wants the `Send to another device` button described in the
-parent project's plan.
+relay is deployed and **copy view URL** is built, so that test is now possible
+and is the next thing to do.
 
 ## Am I looking at the current version?
 
@@ -222,7 +250,7 @@ repeated colour means a repeated version. The two rotate independently,
 because they are cached independently: BDX's colour says nothing about which
 AVX you have.
 
-**BDX red, AVX red** as of 2026-09-20 — independently, so the match means nothing.
+**BDX green, AVX red** as of 2026-09-20 — they rotate independently.
 
 ## Licence
 
