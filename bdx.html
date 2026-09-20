@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-20: GREEN (copy view URL — a viewer on another device).
-     Next = blue. */
+     2026-09-20: BLUE (the viewer link says what it is).
+     Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -90,6 +90,7 @@
     border-radius: 3px; padding: 5px 10px; font: 12px system-ui, sans-serif;
     cursor: pointer;
   }
+  #sendlabel { color: #9a9aa8; font-size: 11px; white-space: nowrap; }
   #sendnote { color: #7a7a86; font-size: 11px; white-space: nowrap; }
   #sendnote.expired { color: #d98a8a; }
   #state.problem { color: #d98a8a; }
@@ -145,8 +146,11 @@
           title="Mint a viewer link and copy it, to open on another device">copy view URL</button>
   </header>
   <section id="sendbox" hidden>
+    <!-- Named, because this is the VIEWER's address and it is being read on
+         the controller. Without the label it looks like the wrong URL. -->
+    <label for="sendurl" id="sendlabel">viewer link &mdash; open on the other device</label>
     <input id="sendurl" type="text" readonly spellcheck="false">
-    <button id="sendcopy" type="button">copy</button>
+    <button id="sendcopy" type="button">copy link</button>
     <span id="sendnote"></span>
   </section>
   <main>
@@ -762,8 +766,15 @@ document.getElementById('send').addEventListener('click', () => {
     sendbox.hidden = false;
     sendurl.focus(); sendurl.select();
     countdown(m.ttl_ms || 180000);           // the relay's own figure, not ours
-    copying.then((ok) => say(ok ? 'link copied — paste it on the other device'
-                                : 'link ready — press copy'));
+    // The button beside the box is a FALLBACK, and saying so stops it reading
+    // as a third thing to press. If the automatic copy worked it offers a
+    // repeat; if the browser refused, it is the way to get the link at all.
+    const copyBtn = document.getElementById('sendcopy');
+    copying.then((ok) => {
+      copyBtn.textContent = ok ? 'copy again' : 'copy link';
+      say(ok ? 'link copied — paste it on the other device'
+             : 'link ready — press copy link');
+    });
   };
   socket.on('msg', onToken);
   socket.emit('msg', { type: 'mint_module_token', moduleId: MODULE_ID });
