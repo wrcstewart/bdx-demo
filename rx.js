@@ -87,7 +87,7 @@ const server = http.createServer((req, res) => {
   // Only these. Not a general file server sitting in front of a node_modules
   // directory and whatever else the folder happens to hold.
   const SERVABLE = new Set(['bdx.html', 'avx.html', 'renderer.html',
-                            'bd_av_client.js', 'index.html']);
+                            'bd_av_client.js', 'index.html', 'qrcode.js']);
   const name = decodeURIComponent((req.url || '').split('?')[0].replace(/^\//, ''));
   if (SERVABLE.has(name)) {
     const file = path.join(__dirname, name);

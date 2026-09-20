@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-20: BLUE (the viewer link says what it is).
-     Next = red. */
+     2026-09-20: RED (the viewer link is a QR code too).
+     Next = green. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #16243a; }
+  #view:hover { background: #2e1414; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -77,9 +77,16 @@
   #send:hover { background: #16161f; }
   #send:disabled { opacity: .45; cursor: default; }
   #sendbox {
-    display: flex; align-items: center; gap: 8px; flex: 0 0 auto;
-    padding: 8px 12px; border-bottom: 1px solid #23232e; background: #0e0e15;
+    display: flex; align-items: center; gap: 12px; flex: 0 0 auto;
+    padding: 10px 12px; border-bottom: 1px solid #23232e; background: #0e0e15;
   }
+  #sendside { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  #sendrow  { display: flex; align-items: center; gap: 8px; }
+  /* A QR needs a LIGHT quiet zone to be read — on a dark page it has to bring
+     its own, so the canvas is deliberately a white tile rather than inheriting
+     the panel. Hidden until there is something to show. */
+  #sendqr { display: none; background: #fff; border-radius: 3px; flex: 0 0 auto; }
+  #sendqr.on { display: block; }
   #sendurl {
     flex: 1 1 auto; min-width: 0; padding: 5px 7px;
     background: #101018; color: #cfcfda; border: 1px solid #2a2a3a;
@@ -146,12 +153,19 @@
           title="Mint a viewer link and copy it, to open on another device">copy view URL</button>
   </header>
   <section id="sendbox" hidden>
-    <!-- Named, because this is the VIEWER's address and it is being read on
-         the controller. Without the label it looks like the wrong URL. -->
-    <label for="sendurl" id="sendlabel">viewer link &mdash; open on the other device</label>
-    <input id="sendurl" type="text" readonly spellcheck="false">
-    <button id="sendcopy" type="button">copy link</button>
-    <span id="sendnote"></span>
+    <!-- A QR is the shortest route to a phone: nothing to paste, nothing to
+         mistype, and the three-minute life stops being a budget to spend. -->
+    <canvas id="sendqr" width="0" height="0" title="Scan with the other device"></canvas>
+    <div id="sendside">
+      <!-- Named, because this is the VIEWER's address and it is being read on
+           the controller. Without the label it looks like the wrong URL. -->
+      <label for="sendurl" id="sendlabel">viewer link &mdash; scan it, or open it on the other device</label>
+      <div id="sendrow">
+        <input id="sendurl" type="text" readonly spellcheck="false">
+        <button id="sendcopy" type="button">copy link</button>
+      </div>
+      <span id="sendnote"></span>
+    </div>
   </section>
   <main>
     <!-- No src at load. The renderer announces BD_READY as soon as it loads, and
@@ -685,7 +699,54 @@ function isLoopback(u) {
   } catch (_) { return false; }
 }
 
+// ── The QR ──────────────────────────────────────────────────────────────────
+//
+// Fetched on the FIRST press and never before: it is 57 KB, and a visitor who
+// only ever presses View should not pay for it. Failure here is not fatal —
+// the link is still on screen and still copyable — so it degrades to silence
+// rather than to an error nobody can act on.
+let qrLoading = null;
+function withQr() {
+  if (typeof qrcode === 'function') return Promise.resolve(true);
+  if (!qrLoading) qrLoading = new Promise((res) => {
+    const el = document.createElement('script');
+    el.src = 'qrcode.js';
+    el.onload  = () => res(typeof qrcode === 'function');
+    el.onerror = () => res(false);
+    document.head.appendChild(el);
+  });
+  return qrLoading;
+}
+
+function drawQr(text) {
+  const cv = document.getElementById('sendqr');
+  withQr().then((ok) => {
+    if (!ok || sendurl.value !== text) return;   // gone stale while loading
+    let q;
+    try { q = qrcode(0, 'M'); q.addData(text); q.make(); }
+    catch (e) { console.warn('[bdx] qr failed: ' + e.message); return; }
+    const n = q.getModuleCount(), quiet = 4;
+    // An INTEGER pixels-per-module, or the scanner sees blurred edges where
+    // the rounding falls. Size the drawing to fit, then let CSS leave it be.
+    const scale = Math.max(3, Math.floor(250 / (n + 2 * quiet)));
+    const px = (n + 2 * quiet) * scale;
+    cv.width = cv.height = px;
+    cv.style.width = cv.style.height = px + 'px';
+    const g = cv.getContext('2d');
+    g.fillStyle = '#fff'; g.fillRect(0, 0, px, px);
+    g.fillStyle = '#000';
+    for (let r = 0; r < n; r++)
+      for (let c = 0; c < n; c++)
+        if (q.isDark(r, c))
+          g.fillRect((c + quiet) * scale, (r + quiet) * scale, scale, scale);
+    cv.classList.add('on');
+  });
+}
+
 function closeSend(why) {
+  const cv = document.getElementById('sendqr');
+  cv.classList.remove('on');
+  cv.width = cv.height = 0;
   sendbox.hidden = true;
   if (ttlTimer) { clearInterval(ttlTimer); ttlTimer = null; }
   if (why) say(why);
@@ -764,6 +825,7 @@ document.getElementById('send').addEventListener('click', () => {
     hand(href);
     sendurl.value = href;
     sendbox.hidden = false;
+    drawQr(href);
     sendurl.focus(); sendurl.select();
     countdown(m.ttl_ms || 180000);           // the relay's own figure, not ours
     // The button beside the box is a FALLBACK, and saying so stops it reading

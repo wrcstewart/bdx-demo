@@ -151,6 +151,22 @@ in. Not the other way round.
 
 ---
 
+## The one third-party file
+
+`qrcode.js` — qrcode-generator 1.4.4, Kazuhiko Arase, MIT — is the only code
+here that was not written for this demo. It is **vendored rather than loaded
+from a CDN**, because otherwise this demo would have an external dependency,
+and having none is a quiet virtue in something meant to prove that third
+parties can build on this architecture: there is nothing to go down but the
+relay. Even socket.io comes from the relay itself. It is fetched lazily, on the
+first press of **copy view URL**, so a visitor who never sends a link never
+pays the 57 KB.
+
+**Verified rather than assumed**: 25 strings — the real launch URL, short and
+long filler, 20 random tokens — encoded with this exact file under node,
+rendered, and decoded with OpenCV's detector. All 25 came back byte for byte,
+at every pixel scale the page might draw.
+
 ## Where the files come from
 
 `bd_relay.js` is **byte-identical** to the file ButterflyDreaming's own server
@@ -197,8 +213,12 @@ about a millisecond. A viewer on your phone has no handle to hold, so something
 in the middle must.
 
 Press **copy view URL**. A token is minted, the link is copied, and it appears
-in a box with a countdown. Paste it on the other device — between Apple devices
-the clipboard carries it across on its own.
+as a **QR code** beside the URL, with a countdown. Scan it with the other
+device — or paste the link, which between Apple devices the clipboard carries
+across on its own.
+
+The QR is the shortest route to a phone: nothing to paste, nothing to mistype,
+and the three-minute life stops being a budget you have to spend.
 
 - **The link is minted on the press, never in advance.** It is single-use and
   lives **three minutes**, so one left sitting on screen is a dead link that
@@ -250,7 +270,7 @@ repeated colour means a repeated version. The two rotate independently,
 because they are cached independently: BDX's colour says nothing about which
 AVX you have.
 
-**BDX green, AVX red** as of 2026-09-20 — they rotate independently.
+**BDX red, AVX red** as of 2026-09-20 — they rotate independently, so a match means nothing.
 
 ## Licence
 
