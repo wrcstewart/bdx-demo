@@ -146,6 +146,15 @@ viewer that is computing the same step itself — **the script records, the
 viewer computes** — which is what keeps a viewer smooth when the controller is
 a backgrounded tab on a phone.
 
+## Try it
+
+**<https://wrcstewart.github.io/bdx-demo/>** — it works on click. The relay is
+live at `https://rx.virtualfictions.uk`.
+
+Edit the script or move a stepper, then press **View** to open a viewer and
+drive it. To use your own relay instead, type it into the box in the header,
+or add `?rx=https://your-relay`.
+
 ## Status
 
 **Working in Chrome, Firefox and Safari**, as of 2026-09-19.
@@ -156,9 +165,10 @@ viewer that know nothing about each other's hosting, and a relay that knows
 nothing about either.
 
 What has **not**: anything across two devices. Every test so far is two
-windows on one machine, which is the case that needs no relay at all. That
-needs a relay reachable from both, which means deploying one — and then the
-`Send to another device` button described in the parent project's plan.
+windows on one machine, which is the case that needs no relay at all. The
+relay is now deployed and reachable from anywhere, so that test has become
+possible — it wants the `Send to another device` button described in the
+parent project's plan.
 
 ## Am I looking at the current version?
 

@@ -37,11 +37,12 @@
   /* CANARY host for AVX, rotating red -> green -> blue on every commit to a
      cached file. Separate from BDX's and deliberately out of step with it:
      the two are cached independently, so one says nothing about the other.
-     2026-09-19: BLUE (both pages now say what went wrong). Next = red. */
+     2026-09-20: RED (the relay is deployed — the hosted demo works on
+     click). Next = green. */
   #back {
     position: fixed; top: 10px; right: 12px; z-index: 6;
     font: 12px/1 system-ui, sans-serif; color: #b9b9c4;
-    background: rgba(0,0,0,.55); border: 2px solid #2d7ff9;
+    background: rgba(0,0,0,.55); border: 2px solid #c0392b;
     padding: 6px 10px; border-radius: 3px; cursor: pointer;
   }
   #back:hover { color: #fff; }
@@ -87,7 +88,7 @@ const params = new URLSearchParams(location.search);
 const RX = params.get('rx') ||
            (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
               ? location.protocol + '//' + location.hostname + ':8081'
-              : 'https://rx.example.invalid');
+              : 'https://rx.virtualfictions.uk');
 
 const frame  = document.getElementById('frame');
 const status = document.getElementById('status');
