@@ -48,11 +48,25 @@ const server = http.createServer((req, res) => {
   // the first question anyone debugging a relay has.
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    // Which TRANSPORT each socket is actually using.
+    //
+    // Socket.IO always OPENS on HTTP long-polling and upgrades to a WebSocket
+    // a moment later, so "does it use WebSockets" is a question about what
+    // happened after the handshake, not about what it offers. Behind a proxy
+    // or a tunnel it is a real question: an upgrade that is silently not
+    // forwarded leaves everything working, on polling, a little slower — the
+    // symptom nobody attributes to a missing header.
+    const transports = {};
+    for (const s of io.sockets.sockets.values()) {
+      const t = (s.conn && s.conn.transport && s.conn.transport.name) || 'unknown';
+      transports[t] = (transports[t] || 0) + 1;
+    }
     res.end(JSON.stringify({
       ok: true,
       service: 'rx',
       sessions: relay.sessions.size,
       viewers: [...io.sockets.sockets.values()].filter(s => s.data.role === 'module').length,
+      transports: transports,
       uptime_s: Math.round(process.uptime())
     }));
     return;
