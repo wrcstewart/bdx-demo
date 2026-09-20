@@ -448,13 +448,22 @@ function connect() {
   const transport = () => {
     try { return socket.io.engine.transport.name; } catch (_) { return '?'; }
   };
+  // And say WHICH relay, because the answer is not always the obvious one.
+  //
+  // RX is resolved from ?rx=, then a STORED one, then localhost-if-local, then
+  // the compiled-in default — and the stored one is the trap: a ?rx= used once
+  // outlives the tab it was typed in, per browser, and silently outranks the
+  // default on the PUBLIC page for ever after. A page talking happily to a
+  // relay on your own machine is indistinguishable from one talking to the
+  // deployed relay, unless it says so.
+  const rxHost = () => { try { return new URL(RX).host; } catch (_) { return RX; } };
   socket.on('connect', () => {
     console.log('[bdx] connected, id ' + socket.id + ', transport ' + transport());
-    say('relay: connected (' + transport() + ')');
+    say('relay: ' + rxHost() + ' (' + transport() + ')');
     try {
       socket.io.engine.on('upgrade', () => {
         console.log('[bdx] upgraded to ' + transport());
-        say('relay: connected (' + transport() + ')');
+        say('relay: ' + rxHost() + ' (' + transport() + ')');
       });
     } catch (_) {}
   });
