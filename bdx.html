@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-20: GREEN (the relay is deployed — the hosted demo works on
-     click). Next = blue. */
+     2026-09-20: BLUE (the header says which transport is in use).
+     Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -438,7 +438,26 @@ function connect() {
     return;
   }
   socket = io(RX);
-  socket.on('connect',       () => { console.log('[bdx] connected, id ' + socket.id); say('relay: connected'); });
+  // Report the TRANSPORT, not just that it connected.
+  //
+  // Socket.IO always opens on HTTP long-polling and upgrades to a WebSocket a
+  // moment later. Behind a proxy or a tunnel the upgrade can be silently not
+  // forwarded, and then everything still works — on polling, a little slower.
+  // That is the failure nobody attributes to a missing header, so say which
+  // one is actually in use rather than leaving it to be guessed.
+  const transport = () => {
+    try { return socket.io.engine.transport.name; } catch (_) { return '?'; }
+  };
+  socket.on('connect', () => {
+    console.log('[bdx] connected, id ' + socket.id + ', transport ' + transport());
+    say('relay: connected (' + transport() + ')');
+    try {
+      socket.io.engine.on('upgrade', () => {
+        console.log('[bdx] upgraded to ' + transport());
+        say('relay: connected (' + transport() + ')');
+      });
+    } catch (_) {}
+  });
   socket.on('connect_error', (e) => {
     console.warn('[bdx] connect_error', e && e.message);
     offerBox();
