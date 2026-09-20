@@ -37,14 +37,13 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-19: BLUE (offers the working http URL as a LINK when mixed
-     content blocks the relay — a box cannot help). Next = red. */
+     2026-09-20: RED (a copy button on the script panel). Next = green. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #16243a; }
+  #view:hover { background: #2e1414; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -79,6 +78,12 @@
     display: flex; align-items: center; gap: 8px;
   }
   aside label input { width: 15px; height: 15px; accent-color: #c9a227; margin: 0; }
+  #copy {
+    margin-left: auto; background: #000; color: #c9c9d4;
+    border: 1px solid #3a3a4a; border-radius: 3px; padding: 3px 9px;
+    font: 11px system-ui, sans-serif; cursor: pointer;
+  }
+  #copy:hover { border-color: #c9a227; color: #fff; }
   #script {
     flex: 1 1 auto; margin: 0 10px 10px; padding: 8px; resize: none;
     background: #101018; color: #cfcfda; border: 1px solid #2a2a3a; border-radius: 3px;
@@ -109,7 +114,9 @@
          never draws. Set from JS, after the listener. -->
     <iframe id="frame" title="renderer"></iframe>
     <aside>
-      <label><input type="checkbox" id="auto" checked> auto &mdash; keep the script and the steppers in step</label>
+      <label><input type="checkbox" id="auto" checked> auto &mdash; keep the script and the steppers in step
+        <button id="copy" type="button" title="Copy the script to the clipboard">copy</button>
+      </label>
       <textarea id="script" spellcheck="false"></textarea>
     </aside>
   </main>
@@ -328,6 +335,52 @@ window.addEventListener('message', (e) => {
 auto.addEventListener('change', () => {
   if (auto.checked && /^%%bd_\w+/m.test(script.value)) { post(script.value); pushToViewer(script.value); }
 });
+
+// ── Copy the script ─────────────────────────────────────────────────────────
+//
+// The script is the whole point of this page: it is what can be shared, saved
+// or pasted into something else, so getting it OUT has to be one press.
+//
+// Two rungs, because the modern API is not always there. navigator.clipboard
+// needs a SECURE CONTEXT — https, or localhost, which counts. Serve these
+// pages over plain http on a LAN address and it is simply undefined, which is
+// exactly the arrangement someone testing across devices will reach for.
+//
+// The fallback is unusually easy here: the text is already sitting in a
+// textarea, so it can be selected in place and copied, with no hidden element
+// to create and tidy away.
+(function () {
+  const btn = document.getElementById('copy');
+  if (!btn) return;
+  const flash = (word) => {
+    btn.textContent = word;
+    setTimeout(() => { btn.textContent = 'copy'; }, 1500);
+  };
+  btn.addEventListener('click', async () => {
+    const text = script.value;
+    if (!text) { flash('empty'); return; }
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        flash('copied');
+        return;
+      }
+    } catch (_) { /* fall through — a refusal is not a reason to give up */ }
+    try {
+      const at = document.activeElement;
+      script.focus();
+      script.setSelectionRange(0, script.value.length);
+      const ok = document.execCommand('copy');
+      script.setSelectionRange(0, 0);
+      if (at && at.focus) { try { at.focus(); } catch (_) {} }
+      flash(ok ? 'copied' : 'press ⌘C');
+    } catch (_) {
+      // Both rungs gone. Say what to do rather than pretending it worked —
+      // the text is visible and selectable, which is the honest fallback.
+      flash('select it');
+    }
+  });
+})();
 
 // ── The relay ───────────────────────────────────────────────────────────────
 let socket = null, viewerWindow = null;
