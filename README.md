@@ -54,6 +54,28 @@ forking anything:
 https://…/bdx.html?rx=https://your-relay.example.com
 ```
 
+**`?rx=` is a setting, not a one-off.** It is remembered in `localStorage` for
+that browser and outranks the compiled-in default from then on, so a later
+visit to the plain URL still uses it. That is deliberate — a query string is
+lost by any reload that does not carry it, and a page that quietly reverted to
+a relay you had replaced was worse. But it means **the bare URL is the one to
+publish**; a `?rx=` link changes the browser that opens it.
+
+To go back, pass the default explicitly — `?rx=https://rx.virtualfictions.uk` —
+or clear site data for the page.
+
+**BDX's header says which relay it actually reached**, with the transport:
+
+```
+relay: rx.virtualfictions.uk (websocket)
+```
+
+Read it before blaming the relay. A relay whose `/health` reports
+`sessions: 0` while the demo plainly works is not broken — **the demo is on a
+different relay**, and a stored `?rx=` or a page served from localhost is why.
+Checking `/health` from a second browser cannot reveal this: a different
+browser has different storage, and was never the thing connected.
+
 ### A note on https, http and Safari
 
 If you serve the pages over **https** and the relay over plain **http**, that
@@ -153,11 +175,16 @@ live at `https://rx.virtualfictions.uk`.
 
 Edit the script or move a stepper, then press **View** to open a viewer and
 drive it. To use your own relay instead, type it into the box in the header,
-or add `?rx=https://your-relay`.
+or add `?rx=https://your-relay` — **remembered for that browser afterwards**,
+see above. The header names whichever relay it reached, and the transport it
+got there on.
 
 ## Status
 
-**Working in Chrome, Firefox and Safari**, as of 2026-09-19.
+**Working in Chrome, Firefox and Safari**, as of 2026-09-19. The relay is
+deployed and **carries a real WebSocket** — verified by connecting with
+`transport=websocket` alone, no polling and no upgrade, while `/health`
+reported `"transports":{"websocket":2}` for a live controller and viewer.
 
 What has been demonstrated: the published pages, served from GitHub Pages,
 driving a viewer through a relay running on a laptop — a controller and a
@@ -182,7 +209,7 @@ repeated colour means a repeated version. The two rotate independently,
 because they are cached independently: BDX's colour says nothing about which
 AVX you have.
 
-Both are **blue** as of 2026-09-19.
+**BDX blue, AVX red** as of 2026-09-20.
 
 ## Licence
 
