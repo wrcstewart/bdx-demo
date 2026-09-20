@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-20: BLUE (the header says which transport is in use).
-     Next = red. */
+     2026-09-20: RED (a stale saved relay now heals itself).
+     Next = green. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #16243a; }
+  #view:hover { background: #2e1414; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -57,6 +57,15 @@
   }
   body.norelay #rxset {
     display: inline-block; background: #000; color: #fff;
+    border: 1px solid #c9a227; border-radius: 3px; padding: 5px 10px;
+    font: 12px system-ui, sans-serif; cursor: pointer;
+  }
+  /* Visible only when a relay other than this page's own default is in use —
+     so its presence IS the statement that something is overridden, and its
+     absence is the statement that nothing is. */
+  #rxdefault { display: none; }
+  body.overriding #rxdefault {
+    display: inline-block; background: #1a1a24; color: #c9a227;
     border: 1px solid #c9a227; border-radius: 3px; padding: 5px 10px;
     font: 12px system-ui, sans-serif; cursor: pointer;
   }
@@ -106,6 +115,8 @@
     <input id="rxurl" type="text" spellcheck="false" placeholder="relay URL, e.g. http://localhost:8081"
          title="Where the relay is. Remembered, so a reload does not lose it.">
   <button id="rxset" type="button" title="Use this relay">use</button>
+  <button id="rxdefault" type="button"
+          title="Forget the saved relay and go back to following the default">default</button>
   <button id="view" type="button" title="Open a viewer and drive it from here">View</button>
   </header>
   <main>
@@ -148,9 +159,32 @@ const LOCAL   = location.hostname === 'localhost' || location.hostname === '127.
 // nothing, and had never created a socket — three rounds of debugging.
 let STORED_RX = null;
 try { STORED_RX = localStorage.getItem('bdx_rx'); } catch (_) {}
-const RX = params.get('rx') || STORED_RX ||
-           (LOCAL ? location.protocol + '//' + location.hostname + ':8081' : DEFAULT_RX);
-if (params.get('rx')) { try { localStorage.setItem('bdx_rx', params.get('rx')); } catch (_) {} }
+
+// What this page would use with nothing stored and nothing on the URL.
+const NATURAL_RX = LOCAL ? location.protocol + '//' + location.hostname + ':8081'
+                         : DEFAULT_RX;
+const URL_RX = params.get('rx');
+let   RX     = URL_RX || STORED_RX || NATURAL_RX;
+
+// Storing the default would PIN a browser to today's address. The obvious
+// repair for a browser pointed at the wrong relay is to hand it ?rx= with the
+// right one — and if that were stored, every browser so repaired would stop
+// following the default and have to be repaired again the day the relay moves.
+// So remembering the natural choice means FORGETTING the override: the repair
+// URL cleans up after itself.
+function rememberRelay(v) {
+  try {
+    if (!v || v === NATURAL_RX) localStorage.removeItem('bdx_rx');
+    else                        localStorage.setItem('bdx_rx', v);
+  } catch (_) {}
+}
+if (URL_RX) rememberRelay(URL_RX);
+
+// An override from the CURRENT url is a present-tense instruction: obey it and
+// fail loudly. One from storage is a setting made long ago in another tab, and
+// is the one that goes stale — so it, and only it, may be healed.
+let healable = !URL_RX && RX !== NATURAL_RX;
+let healed   = false;
 
 const MODULE_ID = 'kolam';          // which KIND of viewer a token is for
 const frame  = document.getElementById('frame');
@@ -162,6 +196,15 @@ function say(t, problem) {
   stateEl.textContent = t;
   stateEl.classList.toggle('problem', !!problem);
   stateEl.title = 'relay: ' + RX;
+}
+
+// A non-default relay is shown as a control, not as a footnote. The trap was
+// never that an override existed — it was that it was invisible, so a page
+// talking happily to a relay on someone's own desk looked exactly like one
+// talking to the deployed relay. A button that is present only when there is
+// something to undo both states the fact and fixes it.
+function showOverride() {
+  document.body.classList.toggle('overriding', RX !== NATURAL_RX);
 }
 
 // ── Say what went wrong, wherever it went wrong ─────────────────────────────
@@ -459,6 +502,7 @@ function connect() {
   const rxHost = () => { try { return new URL(RX).host; } catch (_) { return RX; } };
   socket.on('connect', () => {
     console.log('[bdx] connected, id ' + socket.id + ', transport ' + transport());
+    showOverride();
     say('relay: ' + rxHost() + ' (' + transport() + ')');
     try {
       socket.io.engine.on('upgrade', () => {
@@ -469,6 +513,23 @@ function connect() {
   });
   socket.on('connect_error', (e) => {
     console.warn('[bdx] connect_error', e && e.message);
+    // A stored relay that does not answer is almost always a setting that has
+    // outlived its relay — most often localhost, on a machine that is not this
+    // one. Nobody can diagnose that from the symptom, which is simply that the
+    // demo is broken. So fall back to the default ONCE, say so, and drop the
+    // setting; retrying in place rather than reloading means no loop to guard.
+    if (healable && !healed) {
+      healed = true;
+      const stale = rxHost();
+      rememberRelay(null);
+      RX = NATURAL_RX;
+      healable = false;
+      showOverride();
+      say('saved relay ' + stale + ' did not answer — using the default', true);
+      try { socket.close(); } catch (_) {}
+      setTimeout(connect, 400);
+      return;
+    }
     offerBox();
     say('relay refused: ' + (e && e.message), true);
   });
@@ -513,11 +574,21 @@ function offerBox() { document.body.classList.add('norelay'); }
   const use = () => {
     const v = box.value.trim().replace(/\/$/, '');
     if (!/^https?:\/\//.test(v)) { say('a relay URL starts http:// or https://', true); return; }
-    try { localStorage.setItem('bdx_rx', v); } catch (_) {}
-    location.href = location.pathname + '?rx=' + encodeURIComponent(v);
+    rememberRelay(v);
+    // Typing the default is a way of asking to go back to following it, so it
+    // leaves no query string behind either.
+    location.href = (v === NATURAL_RX) ? location.pathname
+                                       : location.pathname + '?rx=' + encodeURIComponent(v);
   };
   go.addEventListener('click', use);
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter') use(); });
+
+  const reset = document.getElementById('rxdefault');
+  if (reset) reset.addEventListener('click', () => {
+    rememberRelay(null);
+    location.href = location.pathname;     // and drop any ?rx= with it
+  });
+  showOverride();
 })();
 
 // ── Re-issuing a token to a viewer whose own is spent ───────────────────────

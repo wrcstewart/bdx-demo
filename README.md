@@ -61,8 +61,21 @@ lost by any reload that does not carry it, and a page that quietly reverted to
 a relay you had replaced was worse. But it means **the bare URL is the one to
 publish**; a `?rx=` link changes the browser that opens it.
 
-To go back, pass the default explicitly — `?rx=https://rx.virtualfictions.uk` —
-or clear site data for the page.
+Three things make that safe to live with, so it is never a state you can get
+stuck in:
+
+- **Storing the default forgets instead of pins.** `?rx=` with the address the
+  page would have chosen anyway *clears* the setting. So the obvious repair —
+  hand a confused browser the right relay — leaves it following the default
+  again, rather than nailed to today's address.
+- **An override is visible.** A **default** button appears in the header
+  whenever a relay other than the page's own is in use, and clicking it forgets
+  the setting. Its absence says as much as its presence: nothing is overridden.
+- **A stale one heals itself.** If a *stored* relay will not answer, the page
+  falls back to the default once, says `saved relay <host> did not answer —
+  using the default`, and drops the setting. A relay named in the CURRENT URL
+  is never healed: that is a present-tense instruction, so it fails loudly
+  instead.
 
 **BDX's header says which relay it actually reached**, with the transport:
 
@@ -176,8 +189,8 @@ live at `https://rx.virtualfictions.uk`.
 Edit the script or move a stepper, then press **View** to open a viewer and
 drive it. To use your own relay instead, type it into the box in the header,
 or add `?rx=https://your-relay` — **remembered for that browser afterwards**,
-see above. The header names whichever relay it reached, and the transport it
-got there on.
+see above. The header names whichever relay it reached and the transport it got
+there on, and grows a **default** button when that is not the built-in one.
 
 ## Status
 
@@ -209,7 +222,7 @@ repeated colour means a repeated version. The two rotate independently,
 because they are cached independently: BDX's colour says nothing about which
 AVX you have.
 
-**BDX blue, AVX red** as of 2026-09-20.
+**BDX red, AVX red** as of 2026-09-20 — independently, so the match means nothing.
 
 ## Licence
 
