@@ -32,6 +32,16 @@ const bdRelay   = require('./bd_relay');
 const PORT   = process.env.PORT || 8081;
 const ORIGIN = process.env.RX_ORIGIN || '*';
 const QUIET  = process.env.RX_QUIET === '1';
+// Which interface to listen on. Default is every one, which is what you want
+// when this IS the front door.
+//
+// Set RX_HOST=127.0.0.1 when something else faces the world — a reverse proxy,
+// or a tunnel running on the same machine. Then the relay is unreachable from
+// outside BY CONSTRUCTION, rather than because a provider happens to filter
+// the port. Found on the first real deployment, where it was listening on
+// every interface on a public IP and only an upstream firewall stood in the
+// way; that is luck, not design.
+const HOST   = process.env.RX_HOST || undefined;
 
 const server = http.createServer((req, res) => {
   // A health route, because free hosts ask for one and because "is it up" is
@@ -132,8 +142,9 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log('[rx] listening on ' + PORT);
+server.listen(PORT, HOST, () => {
+  console.log('[rx] listening on ' + (HOST ? HOST + ':' : '') + PORT +
+              (HOST ? '  (loopback only — something else faces the world)' : ''));
   console.log('[rx]   controller  http://localhost:' + PORT + '/bdx.html');
   console.log('[rx]   health      http://localhost:' + PORT + '/health');
   console.log('[rx] pages hosted elsewhere reach this relay with ?rx=');

@@ -67,10 +67,15 @@ certificate. A deployed relay needs one anyway, for the same reason.
 
 ### Deploying RX
 
-RX is written for a free Node host: it reads `process.env.PORT`, answers
-`/health`, keeps nothing on disk, and has one dependency. `npm start` is the
-whole of it. `RX_ORIGIN` narrows CORS from `*` if you want that; `RX_QUIET=1`
-silences the log.
+RX is written for a host: it reads `process.env.PORT`, answers `/health`,
+keeps nothing on disk, and has one dependency. `npm start` is the whole of it.
+
+| variable | |
+|---|---|
+| `PORT` | what to listen on. Every host sets this. |
+| `RX_HOST` | **set this to `127.0.0.1` when a proxy or tunnel faces the world.** Then the relay is unreachable from outside by construction, rather than because the provider happens to filter the port. |
+| `RX_ORIGIN` | narrows CORS from `*`. |
+| `RX_QUIET` | `1` silences the log. |
 
 ---
 
