@@ -24,12 +24,12 @@
   /* CANARY host for the splash — rotating red -> green -> blue on every commit
      to it. It has its own because it is cached on its own: bdx.html's colour
      says nothing about which copy of THIS page a browser is holding.
-     2026-09-21: GREEN (postMessage and WebSockets told apart).
-     Next = blue. */
+     2026-09-21: BLUE (each mechanism gets its actual job).
+     Next = red. */
   a.go { display: inline-block; margin-top: 6px; padding: 10px 18px;
-         background: #000; color: #fff; border: 2px solid #27ae60;
+         background: #000; color: #fff; border: 2px solid #2d7ff9;
          border-radius: 3px; text-decoration: none; font-weight: 600; }
-  a.go:hover { background: #17301f; }
+  a.go:hover { background: #16243a; }
   code { color: #c9a227; font-family: ui-monospace, 'Courier New', monospace; font-size: 13px; }
   a { color: #c9a227; }
   h2 { margin: 26px 0 6px; font-size: 11px; font-weight: 600; color: #c9a227;
@@ -66,26 +66,24 @@
 
   <h2>Developer information</h2>
 
-  <p>Two different mechanisms, and which one you need depends only on where the
-     viewer is.</p>
+  <p>Two mechanisms, with two different jobs.</p>
 
-  <p><b><code>postMessage</code></b> is a browser API, not a network one: one
-     window handing a message to another on the same machine. The drawing is an
-     iframe driven that way, and a controller that <i>opened</i> its viewer can
-     drive it the same way &mdash; about a millisecond, with no server involved
-     at all.</p>
+  <p><b><code>postMessage</code></b> is the <b>module interface</b> &mdash; a
+     browser API, not a network one, carrying messages between windows on the
+     same machine. The drawing is an iframe, and BDX drives it this way: it
+     sends the script, and the renderer announces what it drew. That exchange is
+     the whole contract. Implementing it is what makes something a module.</p>
 
-  <p><b>WebSockets</b> are for the other case. Two devices have no window handle
-     between them, so something must stand in the middle: the relay, which holds
-     a WebSocket to each side and passes messages between them. (Socket.IO, so
-     it opens on long&#8209;polling and upgrades.) For simplicity BDX uses the
-     relay even for a viewer on the same machine, but nothing in the
-     architecture requires that &mdash; and the relay is substitutable.</p>
+  <p><b>WebSockets</b> are the <b>viewer transport</b> &mdash; how the script
+     reaches a viewer that is not in the page. Two devices have no window
+     between them, so something must stand in the middle: the relay holds a
+     WebSocket to each side and passes messages across. (Socket.IO, so it opens
+     on long&#8209;polling and upgrades.) The relay is substitutable.</p>
 
-  <p><b>Build on it.</b> The renderer is replaceable. Anything that takes a
-     script by <code>postMessage</code> and announces what it drew can stand in
-     its place. BDX is the harness: it shows what a host must provide, and how
-     little that is.</p>
+  <p><b>Build on it.</b> The renderer is replaceable: anything that honours that
+     contract can stand in its place, and then runs inside ButterflyDreaming
+     unchanged. BDX is the harness &mdash; it shows what a host has to provide,
+     and how little that is.</p>
 
   <p class="note">
     A relay is live behind this copy, so the demo works on click. To run the

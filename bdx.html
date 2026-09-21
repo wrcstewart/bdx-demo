@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-21: GREEN (postMessage and WebSockets told apart).
-     Next = blue. */
+     2026-09-21: BLUE (each mechanism gets its actual job).
+     Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -206,25 +206,24 @@
        another device &mdash; scan the QR with a phone.</p>
 
     <h3>Developer information</h3>
-    <p>Two different mechanisms, and which one you need depends only on where
-       the viewer is.</p>
-    <p><b><code>postMessage</code></b> is a browser API, not a network one: one
-       window handing a message to another on the same machine. The drawing on
-       this page is an iframe driven that way, and a controller that
-       <i>opened</i> its viewer can drive it the same way &mdash; about a
-       millisecond, with no server involved at all.</p>
-    <p><b>WebSockets</b> are for the other case. Two devices have no window
-       handle between them, so something must stand in the middle: the relay,
-       which holds a WebSocket to each side and passes messages between them.
-       (Socket.IO, so it opens on long&#8209;polling and upgrades.) For
-       simplicity BDX uses the relay even for a viewer on this machine, but
-       nothing in the architecture requires that &mdash; and the relay is
-       substitutable: <code>?rx=https://your-relay</code> points these pages at
-       your own.</p>
-    <p><b>Build on it.</b> The renderer is replaceable. Anything that takes a
-       script by <code>postMessage</code> and announces what it drew can stand
-       in its place. BDX is the harness: it shows what a host must provide, and
-       how little that is.</p>
+    <p>Two mechanisms, with two different jobs.</p>
+    <p><b><code>postMessage</code></b> is the <b>module interface</b> &mdash; a
+       browser API, not a network one, carrying messages between windows on the
+       same machine. The drawing on this page is an iframe, and BDX drives it
+       this way: it sends the script, and the renderer announces what it drew.
+       That exchange is the whole contract. Implementing it is what makes
+       something a module.</p>
+    <p><b>WebSockets</b> are the <b>viewer transport</b> &mdash; how the script
+       reaches a viewer that is not in this page. Two devices have no window
+       between them, so something must stand in the middle: the relay holds a
+       WebSocket to each side and passes messages across. (Socket.IO, so it
+       opens on long&#8209;polling and upgrades.) The relay is substitutable
+       &mdash; <code>?rx=https://your-relay</code> points these pages at your
+       own.</p>
+    <p><b>Build on it.</b> The renderer is replaceable: anything that honours
+       that contract can stand in its place, and then runs inside
+       ButterflyDreaming unchanged. BDX is the harness &mdash; it shows what a
+       host has to provide, and how little that is.</p>
     <p class="small">Repository:
        <a href="https://github.com/wrcstewart/bdx-demo">github.com/wrcstewart/bdx-demo</a>
        &mdash; the source, and the reasoning behind every decision in it.
