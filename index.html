@@ -4,42 +4,87 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>BDX · AVX · RX</title>
+<!--
+  The splash. It says the same thing as the panel inside bdx.html, and must go
+  on saying the same thing: most visitors never see this page at all, because a
+  viewer link points straight at bdx.html or avx.html. This is the front door
+  for people who arrive by the repository, not the only door.
+-->
 <style>
   :root { color-scheme: dark; }
   body { margin: 0; background: #0a0a0f; color: #c9c9d4;
          font: 15px/1.6 system-ui, sans-serif;
          display: flex; align-items: center; justify-content: center;
-         min-height: 100dvh; padding: 24px; box-sizing: border-box; }
-  main { max-width: 34rem; }
-  h1 { font-size: 20px; margin: 0 0 4px; color: #e8e8f0; letter-spacing: .01em; }
+         min-height: 100dvh; padding: 24px 24px 40px; box-sizing: border-box; }
+  main { max-width: 36rem; }
+  h1 { font-size: 20px; margin: 0 0 2px; color: #e8e8f0; letter-spacing: .01em; }
+  .sub { color: #6a6a78; font-size: 13px; margin: 0 0 18px; }
   p  { color: #8a8a96; }
-  a.go { display: inline-block; margin-top: 14px; padding: 10px 18px;
-         background: #000; color: #fff; border: 2px solid #27ae60;
+  b  { color: #c9c9d4; }
+  /* CANARY host for the splash — rotating red -> green -> blue on every commit
+     to it. It has its own because it is cached on its own: bdx.html's colour
+     says nothing about which copy of THIS page a browser is holding.
+     2026-09-21: RED (the splash says what BD is, and stops claiming there is
+     no relay). Next = green. */
+  a.go { display: inline-block; margin-top: 6px; padding: 10px 18px;
+         background: #000; color: #fff; border: 2px solid #c0392b;
          border-radius: 3px; text-decoration: none; font-weight: 600; }
-  a.go:hover { background: #17301f; }
-  code { color: #c9a227; font-family: 'Courier New', monospace; }
-  .note { font-size: 13px; color: #6a6a78; margin-top: 22px; }
+  a.go:hover { background: #2e1414; }
+  code { color: #c9a227; font-family: ui-monospace, 'Courier New', monospace; font-size: 13px; }
+  a { color: #c9a227; }
+  h2 { margin: 26px 0 6px; font-size: 11px; font-weight: 600; color: #c9a227;
+       text-transform: uppercase; letter-spacing: .06em;
+       border-top: 1px solid #23232e; padding-top: 12px; }
+  .note { font-size: 13px; color: #6a6a78; margin-top: 20px; }
 </style>
 </head>
 <body>
 <main>
-  <h1>BDX · AVX · RX</h1>
-  <p>A controller, a viewer and a relay. Together they drive a live drawing from
-     a script, and between them they need no database, no corpus, no graph and
-     no accounts.</p>
+  <h1>A media module, lifted out of ButterflyDreaming.</h1>
+  <p class="sub">BDX &middot; AVX &middot; RX &mdash; a controller, a viewer and a relay</p>
+
+  <p><b>ButterflyDreaming</b> (BD) is a collaborative arts&#8209;therapy and
+     peer&#8209;counselling system: a corpus of literature, art and music that
+     anonymous users collage together in conversation.</p>
+
+  <p><b>BDX</b> is one of its media modules, taken out and made to stand on its
+     own &mdash; a controller, a viewer and a relay, with no database, no corpus
+     and no accounts behind them. Two web pages and a script. It is here so that
+     anyone can play with a typical module, and so that a developer can work on
+     the part they actually care about: what you build runs independently, and
+     goes back into BD unchanged.</p>
+
   <a class="go" href="bdx.html">Open the controller</a>
+
+  <p><b>See it.</b> The drawing is based on kolams, grown from an
+     L&#8209;system. Edit the script or move a stepper: two ways of saying the
+     same thing. The <i>script</i> is what is true, and everything else is a
+     view of it.</p>
+
+  <p><b>Send it.</b> <b>copy view URL</b> puts the same live drawing on another
+     device &mdash; scan the QR with a phone.</p>
+
+  <h2>Developer information</h2>
+
+  <p>Sending to a second device is the only thing a relay is for. A viewer
+     opened by <b>View</b> needs no server at all, because a window handle and
+     <code>postMessage</code> reach it directly. Two devices have no handle
+     between them, so something must stand in the middle.</p>
+
+  <p><b>Build on it.</b> The renderer is replaceable. Anything that takes a
+     script by <code>postMessage</code> and announces what it drew can stand in
+     its place. BDX is the harness: it shows what a host must provide, and how
+     little that is.</p>
+
   <p class="note">
-    <strong style="color:#d98a8a">No relay is deployed behind this copy yet.</strong>
-    The drawing and the steppers work; opening a viewer needs one. Run it
-    yourself &mdash; <code>npm install &amp;&amp; npm start</code>, then
-    <code>http://localhost:8081/bdx.html</code> &mdash; or point these pages at
-    a relay you have with <code>?rx=</code>.<br><br>
-    Edit the script or move a stepper, then press <strong>View</strong> to open
-    a viewer and drive it.<br>
-    Point the pages at your own relay with
-    <code>?rx=https://your-relay</code> — no forking required.<br>
-    Source and the reasoning: <a href="https://github.com/wrcstewart/bdx-demo"
-    style="color:#4080ff">github.com/wrcstewart/bdx-demo</a>
+    A relay is live behind this copy, so the demo works on click. To run the
+    whole thing yourself: <code>npm install &amp;&amp; npm start</code>, then
+    <code>http://localhost:8081/bdx.html</code>. To point these pages at a relay
+    of your own, <code>?rx=https://your-relay</code> &mdash; no forking
+    required, and remembered for that browser afterwards.<br><br>
+    Repository:
+    <a href="https://github.com/wrcstewart/bdx-demo">github.com/wrcstewart/bdx-demo</a>
+    &mdash; the source, and the reasoning behind every decision in it. CC0.
   </p>
 </main>
 </body>
