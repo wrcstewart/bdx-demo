@@ -1,11 +1,19 @@
 # BDX · AVX · RX
 
-A controller, a viewer, and a relay. Together they drive a live drawing from a
-script — and between them they need **no database, no corpus, no graph, no
+**ButterflyDreaming** (BD) is a collaborative arts-therapy and peer-counselling
+system: a corpus of literature, art and music that anonymous users collage
+together in conversation. Within it, a *media module* is the thing that renders
+one of those materials — a drawing, a piece of music — from a script.
+
+**This is one of those modules, taken out and made to stand on its own.** A
+controller, a viewer, and a relay. Together they drive a live drawing from a
+script, and between them they need **no database, no corpus, no graph, no
 accounts, and no ButterflyDreaming**.
 
 That is the point of them. They are a demonstration that the module
-architecture BD uses is separable, and that anyone can build on it.
+architecture BD uses is separable — so anyone can play with a typical module,
+and a developer can work on the part they actually care about. What you build
+runs independently, and goes back into BD unchanged.
 
 | | what it is | where it runs |
 |---|---|---|

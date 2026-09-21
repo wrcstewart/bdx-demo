@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-21: RED (the statement of purpose, tightened).
-     Next = green. */
+     2026-09-21: GREEN (what BD is, and what BDX is of it).
+     Next = blue. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #2e1414; }
+  #view:hover { background: #17301f; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -180,15 +180,21 @@
           title="Mint a viewer link and copy it, to open on another device">copy view URL</button>
   </header>
   <section id="aboutbox">
-    <h2>A controller, a viewer, and a relay. Nothing else.</h2>
-    <p>No database, no corpus, no accounts, no ButterflyDreaming. Two web pages
-       and a script. This demo exists to show that BD&rsquo;s module
-       architecture comes apart, and that anyone can build on the pieces.</p>
+    <h2>A media module, lifted out of ButterflyDreaming.</h2>
+    <p><b>ButterflyDreaming</b> (BD) is a collaborative arts&#8209;therapy and
+       peer&#8209;counselling system: a corpus of literature, art and music
+       that anonymous users collage together in conversation.</p>
+    <p><b>BDX</b> is one of its media modules, taken out and made to stand on
+       its own &mdash; a controller, a viewer and a relay, with no database, no
+       corpus and no accounts behind them. Two web pages and a script. It is
+       here so that anyone can play with a typical module, and so that a
+       developer can work on the part they actually care about: what you build
+       runs independently, and goes back into BD unchanged.</p>
     <ul>
       <li><b>See it.</b> The drawing is a kolam grown from an L&#8209;system.
-          Edit the script or move a stepper: they are two ways of saying the
-          same thing. The <i>script</i> is what is true, and everything else is
-          a view of it.</li>
+          Edit the script or move a stepper: two ways of saying the same thing.
+          The <i>script</i> is what is true, and everything else is a view of
+          it.</li>
       <li><b>Send it.</b> <b>copy view URL</b> puts the same live drawing on
           another device &mdash; scan the QR with a phone. This is the only
           thing a relay is for. A viewer opened by <b>View</b> needs no server
@@ -197,9 +203,8 @@
           stand in the middle.</li>
       <li><b>Build on it.</b> The renderer is replaceable. Anything that takes
           a script by <code>postMessage</code> and announces what it drew can
-          stand in its place &mdash; and that same module then runs inside
-          ButterflyDreaming unchanged. BDX is the harness: it shows what a host
-          must provide, and how little that is.</li>
+          stand in its place. BDX is the harness: it shows what a host must
+          provide, and how little that is.</li>
     </ul>
     <p class="small">Source, and the reasoning behind every decision:
        <a href="https://github.com/wrcstewart/bdx-demo">github.com/wrcstewart/bdx-demo</a>.
