@@ -32,6 +32,16 @@ Probably not, and this is the first thing to understand.
 origins included. Measured: **~1 ms, against ~30 ms through a socket.** One
 machine, two windows, no server, nothing to deploy.
 
+`postMessage` is a *browser* API, not a network one — worth saying plainly,
+because it sits next to the socket in every discussion of this and is not a
+kind of socket. It hands a message from one window to another on the same
+machine, and cannot reach a second device at all.
+
+**BDX itself does not take that shortcut**: `pushToViewer` goes through the
+relay even when the viewer is a window beside it, because one path is simpler
+to reason about than two. The shortcut is available, not compulsory — and
+ButterflyDreaming, whose viewer is always one it opened, is where it pays.
+
 **RX earns its place in exactly one case: two different devices.** No window
 handle can exist between them, so something in the middle must. A phone driving
 a screen; a laptop driving a headset. That is what a relay is for, and it is
