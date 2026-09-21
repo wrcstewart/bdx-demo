@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-21: BLUE (each mechanism gets its actual job).
-     Next = red. */
+     2026-09-21: RED (same browser, and holding a handle — not same machine).
+     Next = green. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #16243a; }
+  #view:hover { background: #2e1414; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -208,11 +208,14 @@
     <h3>Developer information</h3>
     <p>Two mechanisms, with two different jobs.</p>
     <p><b><code>postMessage</code></b> is the <b>module interface</b> &mdash; a
-       browser API, not a network one, carrying messages between windows on the
-       same machine. The drawing on this page is an iframe, and BDX drives it
-       this way: it sends the script, and the renderer announces what it drew.
-       That exchange is the whole contract. Implementing it is what makes
-       something a module.</p>
+       browser API, not a network one. It carries messages between two windows
+       in the <b>same browser</b> that hold a reference to one another: a page
+       and its iframe, or a window and the one it opened. Not between two
+       browsers, and not to another machine &mdash; which is exactly why the
+       relay below exists. The drawing on this page is an iframe, and BDX
+       drives it this way: it sends the script, and the renderer announces what
+       it drew. That exchange is the whole contract, and implementing it is
+       what makes something a module.</p>
     <p><b>WebSockets</b> are the <b>viewer transport</b> &mdash; how the script
        reaches a viewer that is not in this page. Two devices have no window
        between them, so something must stand in the middle: the relay holds a

@@ -34,8 +34,12 @@ machine, two windows, no server, nothing to deploy.
 
 `postMessage` is a *browser* API, not a network one — worth saying plainly,
 because it sits next to the socket in every discussion of this and is not a
-kind of socket. It hands a message from one window to another on the same
-machine, and cannot reach a second device at all.
+kind of socket. It needs a **reference to the target window** —
+`iframe.contentWindow`, `window.opener`, `window.parent`, or what
+`window.open` returned — so it reaches only another window in the **same
+browser** that is already related to this one. Not two unrelated tabs, not
+Chrome to Safari, and certainly not a second device. That limit is the whole
+reason a relay exists.
 
 **BDX itself does not take that shortcut**: `pushToViewer` goes through the
 relay even when the viewer is a window beside it, because one path is simpler
