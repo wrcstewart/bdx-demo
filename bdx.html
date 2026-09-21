@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-20: GREEN (a viewer is armed with a spare token).
-     Next = blue. */
+     2026-09-21: BLUE (the page says what it is for).
+     Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -69,6 +69,32 @@
     border: 1px solid #c9a227; border-radius: 3px; padding: 5px 10px;
     font: 12px system-ui, sans-serif; cursor: pointer;
   }
+  /* The page has to say what it is for. Someone arriving on a pasted link has
+     no landing page behind them and no reason to guess — and "a demo of a
+     separable module architecture" is not legible from a drawing of a kolam.
+     Open on a first visit, shut on every one after, because it is an
+     introduction and an introduction repeated is an obstruction. */
+  #about {
+    background: none; color: #6a6a78; border: 1px solid #2a2a3a;
+    border-radius: 3px; padding: 3px 8px; font: 11px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  #about:hover { color: #c9c9d4; border-color: #4a4a5a; }
+  #aboutbox {
+    flex: 0 0 auto; padding: 12px 16px 14px; background: #0e0e15;
+    border-bottom: 1px solid #23232e; max-width: 62em;
+  }
+  #aboutbox[hidden] { display: none; }
+  #aboutbox h2 { margin: 0 0 6px; font-size: 13px; color: #e8e8f0; }
+  #aboutbox p  { margin: 0 0 8px; color: #9a9aa8; }
+  #aboutbox ul { margin: 0; padding-left: 18px; color: #9a9aa8; }
+  #aboutbox li { margin-bottom: 6px; }
+  #aboutbox b  { color: #c9c9d4; }
+  #aboutbox code {
+    font: 12px ui-monospace, monospace; color: #c9a227;
+  }
+  #aboutbox a { color: #c9a227; }
+  #aboutbox .small { font-size: 11px; margin: 10px 0 0; }
   #send {
     background: #000; color: #fff; border: 1px solid #4a4a5a;
     border-radius: 3px; padding: 6px 12px; font: 600 12px system-ui, sans-serif;
@@ -141,6 +167,7 @@
   <header>
     <h1>BDX</h1>
     <span class="sub">controller &mdash; the script is the truth</span>
+    <button id="about" type="button" aria-expanded="true">what is this?</button>
     <span id="state">connecting&hellip;</span>
   <a id="gohttp" href="#" style="display:none">open the http page instead</a>
     <input id="rxurl" type="text" spellcheck="false" placeholder="relay URL, e.g. http://localhost:8081"
@@ -152,6 +179,32 @@
   <button id="send" type="button"
           title="Mint a viewer link and copy it, to open on another device">copy view URL</button>
   </header>
+  <section id="aboutbox">
+    <h2>A controller, a viewer, and a relay &mdash; and nothing else.</h2>
+    <p>No database, no corpus, no accounts, no ButterflyDreaming. Two web pages
+       and a script. That is the point of this demo: the module architecture
+       BD uses comes apart, and anyone can build on the pieces.</p>
+    <ul>
+      <li><b>See it.</b> The drawing is a kolam grown from an L&#8209;system.
+          Edit the script, or move a stepper &mdash; they are two ways of
+          saying the same thing, because the <i>script</i> is what is true and
+          everything else is a view of it.</li>
+      <li><b>Send it.</b> <b>copy view URL</b> puts the same live drawing on
+          another device; scan the QR with a phone. This is the
+          <i>only</i> thing the relay is for &mdash; a viewer opened by
+          <b>View</b> needs no server at all, because a window handle and
+          postMessage are faster. Two devices have no handle between them, so
+          something in the middle must.</li>
+      <li><b>Build on it.</b> The renderer here is replaceable. Anything that
+          accepts a script by <code>postMessage</code> and announces what it
+          drew can take its place &mdash; and the same module then runs inside
+          ButterflyDreaming unchanged. BDX is the harness: it shows what a host
+          has to provide, and how little that is.</li>
+    </ul>
+    <p class="small">Source, and the reasoning behind every decision:
+       <a href="https://github.com/wrcstewart/bdx-demo">github.com/wrcstewart/bdx-demo</a>.
+       CC0 &mdash; take it.</p>
+  </section>
   <section id="sendbox" hidden>
     <!-- A QR is the shortest route to a phone: nothing to paste, nothing to
          mistype, and the three-minute life stops being a budget to spend. -->
@@ -689,6 +742,31 @@ window.addEventListener('message', (e) => {
   socket.emit('msg', { type: 'mint_module_token', moduleId: MODULE_ID });
   setTimeout(() => { if (!done) { done = true; socket.off('msg', onToken); } }, 4000);
 });
+
+// ── What this page is for ───────────────────────────────────────────────────
+//
+// Shown on a first visit and not again. A note you have read is noise, and
+// this page's whole job is to be small enough to see through.
+(function () {
+  const box = document.getElementById('aboutbox');
+  const btn = document.getElementById('about');
+  if (!box || !btn) return;
+  const KEY = 'bdx_about_seen';
+  let seen = false;
+  try { seen = localStorage.getItem(KEY) === '1'; } catch (_) {}
+  const show = (on) => {
+    box.hidden = !on;
+    btn.setAttribute('aria-expanded', on ? 'true' : 'false');
+  };
+  show(!seen);
+  btn.addEventListener('click', () => {
+    const on = box.hidden;
+    show(on);
+    // Only the DISMISSAL is remembered. Opening it again is a question asked,
+    // not a preference set.
+    if (!on) { try { localStorage.setItem(KEY, '1'); } catch (_) {} }
+  });
+})();
 
 // ── Arming a viewer against a drop it cannot recover from ───────────────────
 //
