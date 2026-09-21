@@ -192,7 +192,8 @@ that pretends to be original is not.
 
 ## Building your own module
 
-The renderer here draws kolam from an L-system. Anything that follows the same
+The renderer here draws designs based on kolams, grown from an L-system.
+Anything that follows the same
 two conventions can take its place:
 
 - accept `postMessage {type:'bd_script_update', script}` and draw it;

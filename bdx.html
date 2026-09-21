@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-21: GREEN (what BD is, and what BDX is of it).
-     Next = blue. */
+     2026-09-21: BLUE (developer information split out).
+     Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -86,6 +86,14 @@
   }
   #aboutbox[hidden] { display: none; }
   #aboutbox h2 { margin: 0 0 6px; font-size: 13px; color: #e8e8f0; }
+  /* The split is real, not decorative: everything above it is for anyone who
+     opened the page, everything below it is for someone deciding whether to
+     build on it. */
+  #aboutbox h3 {
+    margin: 14px 0 6px; font-size: 11px; font-weight: 600; color: #c9a227;
+    text-transform: uppercase; letter-spacing: .06em;
+    border-top: 1px solid #23232e; padding-top: 10px;
+  }
   #aboutbox p  { margin: 0 0 8px; color: #9a9aa8; }
   #aboutbox ul { margin: 0; padding-left: 18px; color: #9a9aa8; }
   #aboutbox li { margin-bottom: 6px; }
@@ -190,24 +198,25 @@
        here so that anyone can play with a typical module, and so that a
        developer can work on the part they actually care about: what you build
        runs independently, and goes back into BD unchanged.</p>
-    <ul>
-      <li><b>See it.</b> The drawing is a kolam grown from an L&#8209;system.
-          Edit the script or move a stepper: two ways of saying the same thing.
-          The <i>script</i> is what is true, and everything else is a view of
-          it.</li>
-      <li><b>Send it.</b> <b>copy view URL</b> puts the same live drawing on
-          another device &mdash; scan the QR with a phone. This is the only
-          thing a relay is for. A viewer opened by <b>View</b> needs no server
-          at all, because a window handle and <code>postMessage</code> reach it
-          directly. Two devices have no handle between them, so something must
-          stand in the middle.</li>
-      <li><b>Build on it.</b> The renderer is replaceable. Anything that takes
-          a script by <code>postMessage</code> and announces what it drew can
-          stand in its place. BDX is the harness: it shows what a host must
-          provide, and how little that is.</li>
-    </ul>
-    <p class="small">Source, and the reasoning behind every decision:
-       <a href="https://github.com/wrcstewart/bdx-demo">github.com/wrcstewart/bdx-demo</a>.
+    <p><b>See it.</b> The drawing is based on kolams, grown from an
+       L&#8209;system. Edit the script or move a stepper: two ways of saying
+       the same thing. The <i>script</i> is what is true, and everything else
+       is a view of it.</p>
+    <p><b>Send it.</b> <b>copy view URL</b> puts the same live drawing on
+       another device &mdash; scan the QR with a phone.</p>
+
+    <h3>Developer information</h3>
+    <p>Sending to a second device is the only thing a relay is for. A viewer
+       opened by <b>View</b> needs no server at all, because a window handle
+       and <code>postMessage</code> reach it directly. Two devices have no
+       handle between them, so something must stand in the middle.</p>
+    <p><b>Build on it.</b> The renderer is replaceable. Anything that takes a
+       script by <code>postMessage</code> and announces what it drew can stand
+       in its place. BDX is the harness: it shows what a host must provide, and
+       how little that is.</p>
+    <p class="small">Repository:
+       <a href="https://github.com/wrcstewart/bdx-demo">github.com/wrcstewart/bdx-demo</a>
+       &mdash; the source, and the reasoning behind every decision in it.
        CC0 &mdash; take it.</p>
   </section>
   <section id="sendbox" hidden>
