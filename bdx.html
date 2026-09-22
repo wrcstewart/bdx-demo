@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-21: RED (same browser, and holding a handle — not same machine).
-     Next = green. */
+     2026-09-22: GREEN (angle matching sees through a _p_ mark).
+     Next = blue. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #2e1414; }
+  #view:hover { background: #17301f; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -421,7 +421,13 @@ frame.src = 'renderer.html';
 //
 // So: THE SCRIPT RECORDS THE ANGLE, THE VIEWER COMPUTES IT. Everything else
 // goes straight through.
-const ANGLE_LINES = /^%%bd_angle(?:_minutes|_seconds)?[ \t]+.*$/gm;
+// (?:p_)? — a directive may be written %%bd_p_angle to say "give this one a
+// user control". The mark is presentation and never part of the identity, so
+// anything matching by name must see through it. Added 2026-09-22, BEFORE any
+// script carries a mark: if this stopped matching, every drift frame would
+// read as a human change and be pushed to the viewer, undoing the smoothness
+// work with nothing to show for it but a warmer phone.
+const ANGLE_LINES = /^%%bd_(?:p_)?angle(?:_minutes|_seconds)?[ \t]+.*$/gm;
 const withoutAngle = (t) => t.replace(ANGLE_LINES, '');
 let lastPushed = null;
 
