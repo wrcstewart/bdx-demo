@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-22: GREEN (angle matching sees through a _p_ mark).
-     Next = blue. */
+     2026-09-22: BLUE (the default script marks its controls with _p_).
+     Next = red. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #17301f; }
+  #view:hover { background: #16243a; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -365,20 +365,31 @@ if (location.protocol === 'file:') {
   say('opened as a file — serve it over http to reach a relay', true);
 }
 
+// The p_ on ten of these says "give this one a user control". It is
+// PRESENTATION and nothing else: strip it and the script means exactly the
+// same thing, which is why stroke, background and the score carry none — they
+// have no stepper, and never did.
+//
+// Delete a p_ and that control disappears while its value goes on applying.
+// That is the whole point: after a collage merge you may want eight controls
+// rather than twenty-four, without losing what the other sixteen are set to.
+//
+// A script with NO p_ anywhere keeps the old behaviour and shows every
+// control, so nothing already saved or shared has to change.
 const DEFAULT_SCRIPT = [
   '%%bd_module kolam',
-  '%%bd_symmetry 8',
-  '%%bd_depth 2',
-  '%%bd_step 50',
-  '%%bd_angle 90',
-  '%%bd_angle_minutes 0',
-  '%%bd_angle_drift 10',
-  '%%bd_colour_speed 4',
+  '%%bd_p_symmetry 8',
+  '%%bd_p_depth 2',
+  '%%bd_p_step 50',
+  '%%bd_p_angle 90',
+  '%%bd_p_angle_minutes 0',
+  '%%bd_p_angle_drift 10',
+  '%%bd_p_colour_speed 4',
   '%%bd_stroke angle',
-  '%%bd_saturation 100',
-  '%%bd_lightness 65',
+  '%%bd_p_saturation 100',
+  '%%bd_p_lightness 65',
   '%%bd_background #0a0a0f',
-  '%%bd_weight 1.5',
+  '%%bd_p_weight 1.5',
   '%%bd_score [',
   'axiom: F+F+F+F+F+F+F+F',
   'F: F+F-F-F+F+F+F-F',

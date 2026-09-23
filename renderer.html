@@ -1,4 +1,4 @@
-<!-- Copied from ButterflyDreaming V_Kolam/visual_module.html on 2026-09-20 by
+<!-- Copied from ButterflyDreaming V_Kolam/visual_module.html on 2026-09-23 by
      sync_from_bd.sh. Do not edit here — edit it there and re-run the script. -->
 <!-- ButterflyDreaming Visual Module — visual_module.html — BD Protocol v0.1 -->
 <!-- Sync check: verified visual_module.html <-> GitHub round-trip (2026-07-01). -->
@@ -184,6 +184,9 @@
     /* Control cell — one stepper (or select) above, label immediately below.
        Small margin-bottom separates each button-label pair from the next.
        Media-module convention 2026-07-02. */
+    /* A control the script did not ask for. `hidden` alone loses to the
+       display rule below, so it is stated explicitly. */
+    .control-row[hidden] { display: none !important; }
     .control-row {
       display: flex;
       flex-direction: column;
@@ -561,8 +564,18 @@
     // Two-state machine: text state and bracket state.
     // Returns object of directive name/value pairs.
     // Multi-line directives with [ ] have their raw text (including newlines) as value.
+    // A directive may be written %%bd_p_<name>: the `p_` says "give this one a
+    // user control" and is PRESENTATION ONLY. It never changes what the
+    // directive means, and a directive whose control is hidden must still be
+    // read and applied — so the mark is stripped here and the bare name is the
+    // key, exactly as before.
+    //
+    // Which names carried a mark is remembered on the returned object, hidden
+    // from enumeration so everything that walks the directives is unaffected.
+    const BD_MARK = 'p_';
     function parseBD(text) {
       const directives = {};
+      const marked = new Set();
       const lines = text.split('\n');
       let state = 'text';
       let currentDirective = null;
@@ -573,7 +586,11 @@
           if (line.startsWith('%%bd_')) {
             const spaceIdx = line.indexOf(' ');
             if (spaceIdx === -1) continue;
-            const name = line.slice(5, spaceIdx);
+            let name = line.slice(5, spaceIdx);
+            if (name.startsWith(BD_MARK)) {
+              name = name.slice(BD_MARK.length);
+              marked.add(name);
+            }
             const value = line.slice(spaceIdx + 1).trim();
             if (value === '[') {
               currentDirective = name;
@@ -592,6 +609,9 @@
           }
         }
       }
+      Object.defineProperty(directives, '__marked', {
+        value: marked, enumerable: false
+      });
       return directives;
     }
 
@@ -710,21 +730,39 @@
       });
     }
 
+    // RULE 1 of the collage plan: the writer must reconstruct the form it read.
+    //
+    // This used to build `%%bd_${name}` from the stripped name, so on a script
+    // carrying %%bd_p_symmetry the match failed, `replaced` stayed false, and a
+    // SECOND unmarked copy of the directive was inserted below. One press of a
+    // stepper would have left both lines in the script, with the control
+    // reading whichever came first.
     function setDirectiveValue(nodeText, name, value) {
       const lines = nodeText.split('\n');
-      const directiveName = `%%bd_${name}`;
+      const plain  = `%%bd_${name}`;
+      const marked = `%%bd_${BD_MARK}${name}`;
       let replaced = false;
       const updated = lines.map((line) => {
-        if (line.startsWith(`${directiveName} `)) {
+        // Marked first: `%%bd_p_angle ` also starts with `%%bd_p_angle`, but
+        // `%%bd_angle ` does not start with `%%bd_p_angle`, so there is no
+        // ambiguity in this order.
+        if (line.startsWith(`${marked} `)) {
           replaced = true;
-          return `${directiveName} ${value}`;
+          return `${marked} ${value}`;
+        }
+        if (line.startsWith(`${plain} `)) {
+          replaced = true;
+          return `${plain} ${value}`;
         }
         return line;
       });
       if (!replaced) {
         const insertAt = updated.findIndex((line) => line.trim() === '%%bd_score [');
         const index = insertAt === -1 ? updated.length : insertAt;
-        updated.splice(index, 0, `${directiveName} ${value}`);
+        // A directive the script did not have is added UNMARKED. Adding a
+        // control the author never asked for would be a presentation decision
+        // taken by a value update, which is the thing RULE 1 exists to stop.
+        updated.splice(index, 0, `${plain} ${value}`);
       }
       return updated.join('\n');
     }
@@ -775,6 +813,41 @@
     controlInputs.forEach((input) => {
       input.addEventListener('input', handleControlChange);
     });
+
+    // ── Which controls a script asks for ──────────────────────────────────
+    //
+    // Only these are script-backed. angle_seconds has a control and
+    // deliberately NO directive — it is a sub-arc-minute drift accumulator
+    // that lives only in here — so it is absent from this map and can never be
+    // hidden by a marking decision it has no way to express.
+    const CONTROL_FOR = {
+      symmetry:      symmetrySelect,
+      depth:         depthSelect,
+      step:          stepSlider,
+      angle:         angleSlider,
+      angle_minutes: angleMinutesSlider,
+      angle_drift:   angleDriftSlider,
+      colour_speed:  colourSpeedSlider,
+      weight:        weightSlider,
+      saturation:    saturationSlider,
+      lightness:     lightnessSlider
+    };
+
+    // RULE 2: a script with NO mark anywhere keeps the behaviour it has today
+    // — every control shown. Marking is opt-in, so nothing already written,
+    // saved or shared changes, and there is no corpus to migrate.
+    //
+    // Once a script marks anything, it is taken to mean what it says: the
+    // marked directives are the controls, and the rest keep their values
+    // without offering a stepper for them.
+    function applyControlVisibility(marked) {
+      const anyMarked = marked && marked.size > 0;
+      for (const [name, input] of Object.entries(CONTROL_FOR)) {
+        const row = input.closest('.control-row');
+        if (!row) continue;
+        row.hidden = anyMarked && !marked.has(name);
+      }
+    }
 
     // ── Stepper (+/−) buttons ─────────────────────────────────────────────────
     // Media-module convention 2026-07-02: each numeric-arg %%bd_ directive gets a
@@ -1162,6 +1235,9 @@
       try {
         setStatus('Rendering…');
         storedText = nodeText;
+        // The script says which controls it wants. Done before the draw so the
+        // column is right by the time anything is on screen.
+        try { applyControlVisibility(parseBD(nodeText).__marked); } catch (_) {}
 
         // 2026-09-14 — announce the live script to the host on EVERY render.
         //
