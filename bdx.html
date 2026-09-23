@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-23: RED (a viewer sent to another device is told so).
-     Next = green. */
+     2026-09-23: GREEN (a viewer's Sync is acknowledged beside View).
+     Next = blue. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #27ae60;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #2e1414; }
+  #view:hover { background: #17301f; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did
@@ -134,6 +134,12 @@
   #sendlabel { color: #9a9aa8; font-size: 11px; white-space: nowrap; }
   #sendnote { color: #7a7a86; font-size: 11px; white-space: nowrap; }
   #sendnote.expired { color: #d98a8a; }
+  #sync-note {
+    font-size: 11px; color: #c9a227; background: rgba(201, 162, 39, .14);
+    border: 1px solid #c9a227; border-radius: 3px; padding: 3px 8px;
+    white-space: nowrap;
+  }
+  #sync-note[hidden] { display: none; }
   #state.problem { color: #d98a8a; }
   /* The remedy for mixed content is a different URL, not a different relay —
      so offer the URL. A box cannot help: anything typed into it is still an
@@ -183,6 +189,9 @@
   <button id="rxset" type="button" title="Use this relay">use</button>
   <button id="rxdefault" type="button"
           title="Forget the saved relay and go back to following the default">default</button>
+  <!-- A viewer's Sync landing here. Beside View because that is where the eye
+       already is, and because View is what put the viewer there. -->
+  <span id="sync-note" hidden>synced</span>
   <button id="view" type="button" title="Open a viewer and drive it from here">View</button>
   <button id="send" type="button"
           title="Mint a viewer link and copy it, to open on another device">copy view URL</button>
@@ -715,7 +724,15 @@ function connect() {
     if (m.type === 'av_return') {
       if (typeof m.script === 'string' && m.script) { script.value = m.script; post(m.script); }
       try { window.focus(); } catch (_) {}
-      say('viewer handed back');
+      // Five seconds here, against BD's two — deliberately different, to find
+      // out which reads better before both are settled on one. This is the
+      // demo, where someone is often showing it to another person and looking
+      // at the wrong screen when it lands.
+      //
+      // Said in a badge rather than the status line: the status line is
+      // overwritten by the next connection or drift message, and this is the
+      // one event where the person who caused it is somewhere else.
+      flashSyncNote(5000);
       return;
     }
   });
@@ -811,6 +828,18 @@ window.addEventListener('message', (e) => {
     if (!on) { try { localStorage.setItem(KEY, '1'); } catch (_) {} }
   });
 })();
+
+// A viewer has sent its state back. Shown rather than only logged: the script
+// panel is about to change under you, and an effect with no stated cause reads
+// as a glitch.
+let syncNoteTimer = null;
+function flashSyncNote(ms) {
+  const el = document.getElementById('sync-note');
+  if (!el) return;
+  el.hidden = false;
+  if (syncNoteTimer) clearTimeout(syncNoteTimer);
+  syncNoteTimer = setTimeout(() => { el.hidden = true; syncNoteTimer = null; }, ms || 5000);
+}
 
 // ── Arming a viewer against a drop it cannot recover from ───────────────────
 //
