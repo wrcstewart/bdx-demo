@@ -37,12 +37,12 @@
   /* CANARY host for AVX, rotating red -> green -> blue on every commit to a
      cached file. Separate from BDX's and deliberately out of step with it:
      the two are cached independently, so one says nothing about the other.
-     2026-09-20: GREEN (the viewer keeps a spare token and says so).
-     Next = blue. */
+     2026-09-23: BLUE (Sync, and no way back that is not there).
+     Next = red. */
   #back {
     position: fixed; top: 10px; right: 12px; z-index: 6;
     font: 12px/1 system-ui, sans-serif; color: #b9b9c4;
-    background: rgba(0,0,0,.55); border: 2px solid #27ae60;
+    background: rgba(0,0,0,.55); border: 2px solid #2d7ff9;
     padding: 6px 10px; border-radius: 3px; cursor: pointer;
   }
   #back:hover { color: #fff; }
@@ -207,13 +207,35 @@ const socket = BD_AV.connect({
 // The state goes WITH the request, because on a phone this window closes a
 // moment later and there would be nobody left to ask. No destination: the
 // controller decides where that applies.
+// A viewer on ANOTHER DEVICE has nowhere to go back to: no opener to raise,
+// window.close() refused for a window the script did not open, and "controls"
+// naming something that is not on this machine. BDX says so in the launch URL
+// rather than leaving it to be guessed.
+const IS_DEVICE = (function () {
+  try { return new URLSearchParams(location.search).get('d') === '1'; }
+  catch (_) { return false; }
+})();
+
+// Held in a variable, NOT re-derived from the label at click time. This read
+// `back.textContent === 'BDX'`, which made the WORDING load-bearing: renaming
+// the button would flip it to false and a desktop viewer would start closing
+// itself instead of raising the controller.
+let roomForBoth = false;
 try {
-  const roomForBoth = (window.outerWidth || innerWidth) < screen.availWidth * 0.9;
-  if (roomForBoth) { back.textContent = 'BDX'; back.title = 'Raise the controller window'; }
-} catch (_) {}
+  roomForBoth = (window.outerWidth || innerWidth) < screen.availWidth * 0.9;
+} catch (_) { /* assume none; the phone behaviour is the safe default */ }
+
+if (IS_DEVICE || roomForBoth) {
+  // Both send state and go nowhere: on another device there is nothing to go
+  // to, and beside BDX the controller is already on screen. Browsers largely
+  // refuse a raise anyway, so the sync is the part that reliably happens.
+  back.textContent = 'Sync';
+  back.title = 'Send what this viewer is showing back to BDX';
+}
+// Otherwise the default stands: on a phone with BDX behind it, this button
+// really is the only way back to the controls.
 
 back.addEventListener('click', function () {
-  const roomForBoth = back.textContent === 'BDX';
   let told = false;
   try {
     if (socket && socket.connected) {
@@ -221,6 +243,15 @@ back.addEventListener('click', function () {
       told = true;
     }
   } catch (_) {}
+
+  // On another device: send, say so, stay. No raise — there is no window to
+  // raise. No close — succeeding would be worse than failing, leaving a blank
+  // tab and no controller to have returned to.
+  if (IS_DEVICE) {
+    say(told ? 'sent to BDX' : 'cannot reach BDX', !told);
+    return;
+  }
+
   let raised = false;
   try { if (window.opener && !window.opener.closed) { window.opener.focus(); raised = true; } } catch (_) {}
   // Close only when this window is in the way — the phone case. Side by side,
