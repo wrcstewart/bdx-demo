@@ -210,6 +210,27 @@ that pretends to be original is not.
 
 ## Building your own module
 
+### Why there is only one module here
+
+**Deliberately, and it is not a drawing demo.** The claim being made is
+architectural — a controller, a viewer and a relay driving a module that
+honours two conventions — and a second module demonstrates the same thing
+twice while doubling what can go wrong: more libraries to load, sound that
+cannot start without a user gesture, and another copy to keep from rotting.
+
+**The architecture is media-agnostic**, and ButterflyDreaming is where you can
+see it. It runs two music modules on exactly these conventions —
+`bd_M_ABC`, which plays an ABC score, and `bd_M_Fractal`, which grows one from
+an L-system and plays that — alongside the kolam renderer you have here. Same
+`bd_script_update` in, same `bd_av_state` out; the payload is a script either
+way, and whether it turns into a picture or a sound is the module's business
+and nobody else's.
+
+So: the pattern is here, and the proof that it is not specific to drawing is in
+the main repository.
+
+### The two conventions
+
 The renderer here draws designs based on kolams, grown from an L-system.
 Anything that follows the same
 two conventions can take its place:
