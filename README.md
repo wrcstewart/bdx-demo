@@ -175,14 +175,18 @@ in. Not the other way round.
 
 ## The one third-party file
 
-`qrcode.js` — qrcode-generator 1.4.4, Kazuhiko Arase, MIT — is the only code
-here that was not written for this demo. It is **vendored rather than loaded
-from a CDN**, because otherwise this demo would have an external dependency,
-and having none is a quiet virtue in something meant to prove that third
-parties can build on this architecture: there is nothing to go down but the
-relay. Even socket.io comes from the relay itself. It is fetched lazily, on the
-first press of **copy view URL**, so a visitor who never sends a link never
-pays the 57 KB.
+`qrcode.js` — qrcode-generator 1.4.4, Kazuhiko Arase, MIT — is **vendored
+rather than loaded from a CDN**, so that the hand-off works even when a CDN
+does not. socket.io comes from the relay itself for the same reason: the fewer
+things that can be down, the fewer ways a demo can fail in front of someone.
+Fetched lazily on the first press of **copy view URL**, so a visitor who never
+sends a link never pays the 57 KB.
+
+**It is not the only third-party code here, and an earlier version of this
+paragraph wrongly said it was.** The renderer loads **lindenmayer** from
+jsdelivr for the L-system rewriting — see the `<script src>` near the top of
+`renderer.html`. So the demo has exactly one external runtime dependency, and
+it is in the part most easily replaced: swap the renderer and it goes.
 
 **Verified rather than assumed**: 25 strings — the real launch URL, short and
 long filler, 20 random tokens — encoded with this exact file under node,
