@@ -5,12 +5,16 @@
 //   https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.js
 //   Taken 2026-09-20.
 //
-// Vendored rather than loaded from a CDN because this demo has no external
-// dependencies at all — even socket.io comes from the relay — and that is a
-// quiet virtue in something meant to prove third parties can build on this
-// architecture: there is nothing to go down but the relay itself. It is loaded
-// lazily, on the first press of "copy view URL", so a visitor who never sends
-// a link never fetches it.
+// Vendored rather than loaded from a CDN so the hand-off works even when a CDN
+// does not; socket.io comes from the relay for the same reason. The fewer
+// things that can be down, the fewer ways a demo fails in front of someone.
+// Loaded lazily, on the first press of "copy view URL", so a visitor who never
+// sends a link never fetches it.
+//
+// CORRECTION 2026-09-24: this note used to say the demo had NO external
+// dependencies. It has one — renderer.html pulls `lindenmayer` from jsdelivr
+// for the L-system rewriting, and had done so long before I wrote that. The
+// decision to vendor stands; the reason given for it did not.
 //
 // VERIFIED, not assumed: 25 strings — the real launch URL, short and long
 // filler, and 20 random tokens — were encoded with this file under node,
