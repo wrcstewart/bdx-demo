@@ -37,14 +37,14 @@
      current version" is answerable at a glance rather than by clearing a
      cache. It matters more here than in a server-rendered app: these pages
      live on GitHub Pages, behind a CDN that caches happily.
-     2026-09-26: BLUE (step runs to 9.9k — renderer synced from BD).
-     Next = red. */
+     2026-09-26: RED (step really reaches 9.9k — renderer re-synced).
+     Next = green. */
   #view {
-    margin-left: auto; background: #000; color: #fff; border: 2px solid #2d7ff9;
+    margin-left: auto; background: #000; color: #fff; border: 2px solid #c0392b;
     border-radius: 3px; padding: 6px 14px; font: 600 12px system-ui, sans-serif;
     cursor: pointer;
   }
-  #view:hover { background: #16243a; }
+  #view:hover { background: #2e1414; }
   #state { font-size: 11px; color: #7a7a86; }
   /* Shown only when there is no relay yet. A query string is too easy to lose
      on a reload, and losing it produced a page that looked healthy and did

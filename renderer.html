@@ -482,6 +482,17 @@
     const symmetrySelect = document.getElementById('symmetry-select');
     const depthSelect    = document.getElementById('depth-select');
     const stepSlider     = document.getElementById('step-slider');
+    // ONE ceiling, read from the input's own max attribute.
+    //
+    // 2026-09-26. The note below used to say "raised in all THREE places that
+    // clamp it — miss one and the control moves while the drawing does not",
+    // and that is exactly what happened when the range went to 9900: the
+    // attribute was raised, the two clamps were not, and the stepper stopped
+    // dead at 999 because every render pulled it back. A warning is not a
+    // mechanism. Now there is one number and the others read it.
+    const STEP_MIN = parseFloat(stepSlider.min) || 10;
+    const STEP_MAX = parseFloat(stepSlider.max) || 9900;
+    const clampStep = (v) => Math.min(Math.max(v, STEP_MIN), STEP_MAX);
     const angleSlider    = document.getElementById('angle-slider');
     // ── The angle cycle (2026-09-16) ──────────────────────────────────────
     // ONE definition of the range, because there were three and they disagreed:
@@ -663,11 +674,10 @@
       symmetrySelect.value = String(symmetryValue);
       const depthValue = Math.min(Math.max(safeParseInt(directives.depth, 4), 1), 5);
       depthSelect.value = String(depthValue);
-      // 2026-09-15 — ceiling 200 → 999. The renderer never needed the 200;
-      // long steps read well, especially on desktop. Raised in all THREE
-      // places that clamp it (this one, the input's max attr, and the render
-      // clamp) — miss one and the control moves while the drawing does not.
-      stepSlider.value = String(Math.min(Math.max(safeParseNumber(directives.step, 40), 10), 999));
+      // 2026-09-15 ceiling 200 → 999; 2026-09-26 → 9900. The renderer never
+      // needed a small one; long steps read well, especially on desktop.
+      // Clamped through clampStep so the range lives in one place.
+      stepSlider.value = String(clampStep(safeParseNumber(directives.step, 40)));
       angleSlider.value = String(Math.min(Math.max(safeParseNumber(directives.angle, 45), ANGLE_MIN), ANGLE_MAX));
       angleMinutesSlider.value = String(Math.min(Math.max(safeParseNumber(directives.angle_minutes, 0), 0), 59));
       // angle_seconds is now internal-only — never present in the script.
@@ -1330,7 +1340,7 @@
         const params = {
           symmetry:   safeParseInt(directives.symmetry, 8),
           depth:      Math.min(Math.max(safeParseInt(directives.depth, 4), 1), 5),
-          step:       Math.min(Math.max(safeParseNumber(directives.step, 40), 10), 999),
+          step:       clampStep(safeParseNumber(directives.step, 40)),
           angle:      Math.min(Math.max(safeParseNumber(directives.angle, 45), ANGLE_MIN), ANGLE_MAX),
           stroke:     directives.stroke                  || 'angle',   /* A42 fix: was '#4a9b8e' — that killed hue cycling when the script omitted %%bd_stroke angle. */
           background: directives.background             || '#0a0a0f',
