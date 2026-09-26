@@ -1,4 +1,4 @@
-/* Copied from ButterflyDreaming AV/bd_av_client.js on 2026-09-23 by sync_from_bd.sh.
+/* Copied from ButterflyDreaming AV/bd_av_client.js on 2026-09-26 by sync_from_bd.sh.
    Do not edit here — edit it there and re-run the script. */
 /*
  * bd_av_client.js — the client shim for an Ancillary Viewer (AV).

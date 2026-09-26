@@ -1,4 +1,4 @@
-<!-- Copied from ButterflyDreaming V_Kolam/visual_module.html on 2026-09-23 by
+<!-- Copied from ButterflyDreaming V_Kolam/visual_module.html on 2026-09-26 by
      sync_from_bd.sh. Do not edit here — edit it there and re-run the script. -->
 <!-- ButterflyDreaming Visual Module — visual_module.html — BD Protocol v0.1 -->
 <!-- Sync check: verified visual_module.html <-> GitHub round-trip (2026-07-01). -->
@@ -241,6 +241,10 @@
     .step-btn:active { background: #243f3b; }
     .step-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+    /* Four characters ("1.0k") in a span measured to fit three. Shrinking the
+       text is the cheaper trade: widening .control-row would move every
+       stepper's centre and undo the tap-target spacing set on 2026-08-17. */
+    .stepper-value--wide { font-size: 0.56rem; letter-spacing: -0.02em; }
     .stepper-value {
       flex: 1;
       display: flex;
@@ -363,7 +367,8 @@
         <button class="step-btn" type="button" data-target="step-slider" data-delta="1">+</button>
       </div>
       <label>step</label>
-      <input id="step-slider" class="stepper-source" type="number" min="10" max="999" step="1" value="40">
+      <input id="step-slider" class="stepper-source" type="number" min="10" max="9900" step="1"
+             data-coarse-above="1000" data-coarse-step="100" value="40">
     </div>
 
     <div class="control-row">
@@ -725,8 +730,27 @@
             ? formatDirectiveNumber(2 ** exp).replace(/^0\./, '.')
             : input.value;
         } else {
-          span.textContent = input.value;
+          // 1000 and above read as 1.0k … 9.9k.
+          //
+          // RULE 8 of the collage plan: ABBREVIATE, never translate. "1.0k" is
+          // the same NUMBER as the script's 1000, written shorter — the way
+          // "pent" abbreviates min_pentatonic. It is not a second vocabulary
+          // for it, which is what "off" against "false" was.
+          //
+          // Nothing reads this back: Kolam's steppers take their value from
+          // the hidden input, not by parsing the span, so there is no inverse
+          // to keep in step. (Fractal and ABC DO parse their spans, so the
+          // same abbreviation there would need its reader moved with it.)
+          const n = parseFloat(input.value);
+          span.textContent = (Number.isFinite(n) && n >= 1000)
+            ? (n / 1000).toFixed(1) + 'k'
+            : input.value;
         }
+        // 0.7rem Courier fits three characters in an 18px span — measured, and
+        // the reason ".25" lost its leading zero. "1.0k" is four, so a long
+        // readout shrinks itself rather than widening the column, which would
+        // undo the 2026-08-17 tap-target spacing.
+        span.classList.toggle('stepper-value--wide', span.textContent.length > 3);
       });
     }
 
@@ -857,13 +881,34 @@
     // `magnitude` is how far ONE press moves the value. It defaults to the
     // input's own step, which is what a single tap uses; the hold-repeat below
     // passes a larger one so a long range stays reachable.
+    // How far ONE tap moves, which is not always input.step.
+    //
+    // 2026-09-26 — step now runs to 9900, and moving through the top eight
+    // thousand of that one unit at a time is not a control, it is a chore. So
+    // above data-coarse-above it moves in data-coarse-step instead.
+    //
+    // The boundary is crossed at FINE resolution in both directions: coarse
+    // applies going UP from the threshold itself, and only ABOVE it going
+    // down. Without that asymmetry, stepping down from 1000 would land on 900
+    // and 999 would become unreachable — you could pass a value but never
+    // return to it, which is the sort of thing that reads as a bug.
+    function tapStep(input, cur, delta) {
+      const step   = parseFloat(input.step) || 1;
+      const above  = parseFloat(input.dataset.coarseAbove);
+      const coarse = parseFloat(input.dataset.coarseStep);
+      if (!Number.isFinite(above) || !Number.isFinite(coarse)) return step;
+      const inCoarse = delta > 0 ? cur >= above : cur > above;
+      return inCoarse ? coarse : step;
+    }
+
     function stepControl(input, delta, magnitude) {
       const min  = parseFloat(input.min);
       const max  = parseFloat(input.max);
       const step = parseFloat(input.step) || 1;
       const cur  = parseFloat(input.value);
       if (!Number.isFinite(cur)) return;
-      const move = Number.isFinite(magnitude) && magnitude > 0 ? magnitude : step;
+      const tap  = tapStep(input, cur, delta);
+      const move = Number.isFinite(magnitude) && magnitude > 0 ? magnitude : tap;
       let next = cur + delta * move;
       // data-wrap marks a CYCLIC control — angle is one, because 360 degrees
       // is a turn, not a ceiling. Stepping + past the top comes round to the
@@ -875,9 +920,12 @@
         if (Number.isFinite(min)) next = Math.max(min, next);
         if (Number.isFinite(max)) next = Math.min(max, next);
       }
-      // Round to the step grid, then trim FP noise (0.1 * 3 = 0.30000000000000004).
-      if (Number.isFinite(step) && step > 0) {
-        next = Math.round(next / step) * step;
+      // Round to the grid ACTUALLY in use — `tap`, not `step`. Rounding a
+      // coarse move onto the fine grid would be a no-op here (100 is a
+      // multiple of 1) but would not be for a control whose two grids did not
+      // divide, and the intent is "stay on the grid you are moving by".
+      if (Number.isFinite(tap) && tap > 0) {
+        next = Math.round(next / tap) * tap;
       }
       next = parseFloat(next.toFixed(4));
       const strVal = String(next);
